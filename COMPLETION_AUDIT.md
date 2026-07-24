@@ -265,7 +265,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 |---|---|---|
 | Live UI walkthrough across the full operational lifecycle | Proven in isolated local runtime; not yet proven on a deployed URL | 67-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, and outcome. The 15-check durable suite covers authenticated persistence and audit history. |
 | Current entity counts and representative records | Proven for the refreshed evidence bundle | Official public-feed refresh contains 137 unique requests; all 104 Base44 IDs remain present and 33 City-only records are added. |
-| Scheduled workflows active with recent successful runs | Proven in local runtime; deployment evidence missing | Repeated scheduler tests create successful append-only brief and alert runs. City sync is independently tested and idempotent. No production host currently supplies recent runtime records. |
+| Scheduled workflows active with recent successful runs | Proven in a disposable durable runtime; production deployment evidence missing | With the real scheduler and City sync enabled, the runtime recorded repeated successful `city_311_sync`, `daily_brief`, and `alert_evaluation` runs through 2026-07-24 02:08:13Z. No production host currently supplies persistent runtime records. |
 | Administrator and non-administrator permission checks | Proven locally | Browser and API tests cover Viewer, Operator, and Administrator paths, protected sections, source evidence, interventions, malformed intake, duplicate IDs, alerts, and append-only histories. |
 | Build/runtime check with no blocking errors | Proven locally; container-host build remains external | JavaScript syntax, 67 browser checks, 15 durable-browser checks, and 12 standard-library tests pass. Docker is unavailable in this workspace, so a host image build is not claimed. |
 | Existing complaint IDs preserved | Proven locally | The acceptance suite compares the 104 Base44 source IDs with the 137-record hydrated queue and requires every ID to remain present. |
@@ -273,6 +273,26 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 The product behavior is implemented and locally verified. Completion under the
 spec remains intentionally unclaimed until a controlled deployment supplies a
 live URL, successful container/runtime check, and recent scheduled-run evidence.
+
+### Disposable runtime evidence
+
+The immutable feature commit `62e4137` was exported into a temporary directory
+and started with SQLite, the scheduler, and read-only City sync enabled. The
+health endpoint reported `status: ok`, SQLite storage, a two-second evaluation
+interval, and both scheduler and City sync enabled. The initialized state held
+137 unique request IDs and all 104 preserved Base44 IDs. Multiple real scheduler
+cycles independently recorded:
+
+- `city_311_sync`: success, 137 source records, zero invalid, zero duplicate
+  additions, and no state change for an unchanged feed;
+- `daily_brief`: success, four requests in the latest source-anchored 24-hour
+  window;
+- `alert_evaluation`: success, with no subscriptions and therefore no delivery
+  states.
+
+The disposable service was stopped after inspection to avoid unnecessary public
+feed requests. Its temporary database is runtime evidence, not a production
+deployment or durable backup.
 
 ## Reproducible local verification
 
