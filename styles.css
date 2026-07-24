@@ -152,6 +152,25 @@ button, select, input, textarea { touch-action: manipulation; }
 
 .masthead .role-control, .masthead .live-mark { color: rgba(255, 255, 255, 0.82); }
 
+.source-refresh-status {
+  display: grid;
+  gap: 2px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.source-refresh-status time {
+  color: white;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .role-control select {
   padding: 4px 22px 4px 6px;
   border: 1px solid var(--line);
@@ -325,14 +344,21 @@ main { padding: 0 clamp(20px, 4vw, 64px) 64px; }
 }
 
 .map-controls > label:first-child { display: grid; gap: 3px; min-width: 170px; }
-.map-controls label span { color: var(--muted); font-size: 0.62rem; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
+.map-controls label span, .map-address-control > label, .map-saved-addresses > span { color: var(--muted); font-size: 0.62rem; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase; }
 .map-controls select { padding: 3px 0; border: 0; color: var(--ink); background: transparent; font-size: 0.78rem; }
 .check-control { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.72rem; }
 .map-controls .result-count { margin-left: auto; }
-.map-controls .map-address-control { min-width: min(360px, 32vw); }
+.map-controls .map-address-control { display: grid; gap: 5px; min-width: min(430px, 38vw); }
 .map-search-row { display: flex; align-items: center; gap: 7px; }
 .map-search-row input { min-width: 0; flex: 1; padding: 7px 8px; border: 1px solid var(--line); color: var(--ink); background: white; font-size: 0.76rem; }
 .map-search-row .secondary-button { padding: 7px 10px; }
+.map-saved-addresses { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 7px; min-height: 23px; }
+.map-address-chips { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.map-address-chip, .map-clear-addresses { padding: 3px 7px; border: 1px solid var(--line); color: var(--green); background: transparent; cursor: pointer; font-size: 0.66rem; }
+.map-address-chip:hover, .map-address-chip:focus-visible { border-color: var(--green); background: var(--green-soft); }
+.map-clear-addresses { padding-inline: 2px; border-color: transparent; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.map-address-empty { color: var(--muted); font-size: 0.66rem; }
+.map-search-privacy { margin: 0; color: var(--muted); font-size: 0.64rem; line-height: 1.4; }
 .map-search-summary { min-height: 38px; padding: 10px 14px; border: 1px solid var(--line); border-top: 0; color: var(--muted); background: #f1f1ec; font-size: 0.72rem; line-height: 1.45; }
 .operational-map-wrap { position: relative; min-height: 640px; border: 1px solid var(--line); border-top: 0; background: #e8ebe9; box-shadow: var(--shadow); }
 #operationalMap { width: 100%; height: 640px; }
@@ -754,7 +780,7 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .section-actions { width: 100%; align-items: flex-start; flex-direction: column; }
   .masthead-meta { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 0; }
   .masthead-meta > * { min-width: 0; }
-  .live-mark, .role-control { grid-column: 1 / -1; }
+  .live-mark, .source-refresh-status, .role-control { grid-column: 1 / -1; }
   .masthead .quiet-button, .masthead .file-button { min-height: 44px; padding: 11px 10px; border: 1px solid rgba(255,255,255,0.42); text-align: center; }
   .masthead .install-button { color: var(--civic-blue-dark); border-color: white; background: white; }
   .section-nav {
@@ -858,6 +884,10 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .subscription-item, .alert-delivery { align-items: flex-start; flex-direction: column; }
   .alert-delivery > div:last-child { text-align: left; }
   .map-controls { align-items: flex-start; flex-direction: column; }
+  .map-controls .map-address-control { width: 100%; min-width: 0; }
+  .map-search-row { flex-wrap: wrap; }
+  .map-search-row input { flex-basis: 100%; }
+  .map-search-row .secondary-button { min-height: 44px; flex: 1; }
   .map-controls .result-count { margin-left: 0; }
   .operational-map-wrap, #operationalMap { min-height: 520px; height: 520px; }
   .intake-dialog, .auth-dialog {

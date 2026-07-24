@@ -2,6 +2,8 @@ const STORAGE_KEY = "311-field-intelligence-trial-v1";
 const ROLE_KEY = "311-field-intelligence-trial-role";
 const SECTION_VIEW_KEY = "311-field-intelligence-section-views-v1";
 const SECTION_VIEW_EVENTS_KEY = "311-field-intelligence-section-view-events-v1";
+const MAP_RECENT_ADDRESSES_KEY = "311-field-intelligence-map-recent-addresses-v1";
+const MAP_RECENT_ADDRESSES_LIMIT = 4;
 const requestEvidenceOverrides = {
   "CAS-3085935-H5M2M1": {
     description: "Spin scooter blocking ADA accessibility on the sidewalk at 4th Avenue and 4th Street; a second improperly parked scooter was reported at 4th Street and 5th Avenue.",
@@ -80,6 +82,7 @@ let operationalMap = null;
 let operationalMapLayers = null;
 let operationalMapHasFit = false;
 let operationalMapSearchLayer = null;
+let mapRecentAddresses = loadMapRecentAddresses();
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
@@ -116,6 +119,44 @@ function loadState() {
   } catch {
     return structuredClone(initialState);
   }
+}
+
+function loadMapRecentAddresses() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MAP_RECENT_ADDRESSES_KEY));
+    return Array.isArray(saved)
+      ? saved
+        .filter(address => typeof address === "string" && address.trim())
+        .map(address => address.trim().slice(0, 160))
+        .slice(0, MAP_RECENT_ADDRESSES_LIMIT)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberMapAddress(address) {
+  const normalizedAddress = address.trim();
+  mapRecentAddresses = [
+    normalizedAddress,
+    ...mapRecentAddresses.filter(saved => saved.toLowerCase() !== normalizedAddress.toLowerCase())
+  ].slice(0, MAP_RECENT_ADDRESSES_LIMIT);
+  try {
+    localStorage.setItem(MAP_RECENT_ADDRESSES_KEY, JSON.stringify(mapRecentAddresses));
+  } catch {
+    // Address search remains available when browser storage is restricted.
+  }
+  renderMapRecentAddresses();
+}
+
+function renderMapRecentAddresses() {
+  const container = document.getElementById("mapSavedAddresses");
+  const clearButton = document.getElementById("mapClearAddresses");
+  if (!container || !clearButton) return;
+  container.innerHTML = mapRecentAddresses.length
+    ? mapRecentAddresses.map(address => `<button class="map-address-chip" type="button" data-map-address="${escapeHtml(address)}">${escapeHtml(address)}</button>`).join("")
+    : `<span class="map-address-empty">Successful searches appear here.</span>`;
+  clearButton.hidden = !mapRecentAddresses.length;
 }
 
 function roleAllows(required) {
@@ -228,6 +269,7 @@ async function loadDurableState() {
       auditLog: serverAuditEntries(audit.entries)
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    updateCityFeedStatus(state.cityFeedFetchedAt);
   } else if (roleAllows("operator")) {
     await writeDurableState();
   }
@@ -340,16 +382,8 @@ async function runServerWorkflows() {
       csrf: true,
       body: {}
     });
-    const workflows = await apiJson("/api/workflows");
-    workflowState = {
-      enabled: workflows.enabled,
-      citySyncEnabled: workflows.city_sync_enabled,
-      intervalSeconds: workflows.interval_seconds,
-      runs: workflows.runs || [],
-      deliveryCount: workflows.delivery_count || 0,
-      status: "available"
-    };
-    renderActivity();
+    await loadDurableState();
+    renderAll();
     showNotice(`Server workflows completed with status ${result.status}.`, result.status === "success" ? "success" : "");
   } catch (error) {
     showNotice(`Workflow run failed: ${error.message}`, "error");
@@ -627,6 +661,7 @@ async function hydrateFromVerifiedSnapshot() {
 }
 
 async function hydrateFromCityFeed() {
+  updateCityFeedStatus("");
   try {
     const response = await fetch("columbus-311-current.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`City feed request failed with ${response.status}`);
@@ -685,11 +720,28 @@ async function hydrateFromCityFeed() {
     const mode = document.getElementById("dataMode");
     mode.innerHTML = `<span></span> City 30-day feed · ${records.length}`;
     mode.title = `${refreshed} preserved Base44 records refreshed; ${added} additional City records added read-only${feed.fetched_at ? ` · fetched ${new Date(feed.fetched_at).toLocaleString()}` : ""}`;
+    updateCityFeedStatus(feed.fetched_at);
     return { added, refreshed, total: state.issues.length };
   } catch (error) {
     console.warn("Current Columbus 311 public feed unavailable.", error);
     return null;
   }
+}
+
+function updateCityFeedStatus(fetchedAt) {
+  const status = document.getElementById("cityFeedStatus");
+  const time = document.getElementById("cityFeedFetchedAt");
+  if (!status || !time) return;
+  const parsed = new Date(fetchedAt);
+  if (!fetchedAt || Number.isNaN(parsed.getTime())) {
+    time.textContent = "Unavailable";
+    time.removeAttribute("datetime");
+    status.title = "No verified successful pull timestamp is available.";
+    return;
+  }
+  time.dateTime = parsed.toISOString();
+  time.textContent = parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  status.title = `Last successful read-only pull from the official City of Columbus 311 source: ${parsed.toLocaleString()}`;
 }
 
 async function hydrateOperationalSources() {
@@ -2619,30 +2671,75 @@ async function searchNearAddress(event) {
       return;
     }
     const point = { lat: Number(result.lat), lng: Number(result.lon) };
-    const nearbyIssues = state.issues
-      .map(issue => ({ issue, distance: distanceMeters(issue, point) }))
-      .filter(item => item.distance <= 805)
-      .toSorted((a, b) => a.distance - b.distance);
-    const nearbyVehicles = vehicleState.vehicles.filter(vehicle => distanceMeters(vehicle, point) <= 805);
-    operationalMapSearchLayer.clearLayers();
-    L.marker([point.lat, point.lng])
-      .bindPopup(`<strong>${escapeHtml(result.display_name)}</strong><br>Search location`)
-      .addTo(operationalMapSearchLayer)
-      .openPopup();
-    L.circle([point.lat, point.lng], {
-      radius: 805,
-      color: "#18201d",
-      dashArray: "4 5",
-      weight: 1.5,
-      fillColor: "#fffefb",
-      fillOpacity: 0.05
-    }).addTo(operationalMapSearchLayer);
-    operationalMap.setView([point.lat, point.lng], 14);
-    summary.innerHTML = `<strong>${escapeHtml(result.display_name)}</strong> · within ½ mile: ${nearbyIssues.length} loaded 311 request${nearbyIssues.length === 1 ? "" : "s"} and ${nearbyVehicles.length.toLocaleString()} GBFS vehicle${nearbyVehicles.length === 1 ? "" : "s"}${nearbyIssues.length ? ` · nearest: ${nearbyIssues.slice(0, 3).map(item => `${escapeHtml(item.issue.id)} (${Math.round(item.distance)} m)`).join(", ")}` : ""}`;
+    rememberMapAddress(query);
+    showMapSearchPoint(point, result.display_name);
   } catch (error) {
     console.warn("Address search unavailable.", error);
     summary.textContent = "Address search is temporarily unavailable. Existing request addresses remain searchable in Operations.";
   }
+}
+
+function showMapSearchPoint(point, name, privacyNote = "") {
+  const nearbyIssues = state.issues
+    .map(issue => ({ issue, distance: distanceMeters(issue, point) }))
+    .filter(item => item.distance <= 805)
+    .toSorted((a, b) => a.distance - b.distance);
+  const nearbyVehicles = vehicleState.vehicles.filter(vehicle => distanceMeters(vehicle, point) <= 805);
+  operationalMapSearchLayer.clearLayers();
+  L.marker([point.lat, point.lng])
+    .bindPopup(`<strong>${escapeHtml(name)}</strong><br>Search location`)
+    .addTo(operationalMapSearchLayer)
+    .openPopup();
+  L.circle([point.lat, point.lng], {
+    radius: 805,
+    color: "#18201d",
+    dashArray: "4 5",
+    weight: 1.5,
+    fillColor: "#fffefb",
+    fillOpacity: 0.05
+  }).addTo(operationalMapSearchLayer);
+  operationalMap.setView([point.lat, point.lng], 14);
+  document.getElementById("mapSearchSummary").innerHTML =
+    `<strong>${escapeHtml(name)}</strong> · within ½ mile: ${nearbyIssues.length} loaded 311 request${nearbyIssues.length === 1 ? "" : "s"} and ${nearbyVehicles.length.toLocaleString()} GBFS vehicle${nearbyVehicles.length === 1 ? "" : "s"}${nearbyIssues.length ? ` · nearest: ${nearbyIssues.slice(0, 3).map(item => `${escapeHtml(item.issue.id)} (${Math.round(item.distance)} m)`).join(", ")}` : ""}${privacyNote ? ` · ${escapeHtml(privacyNote)}` : ""}`;
+}
+
+function searchNearCurrentLocation() {
+  initOperationalMap();
+  const summary = document.getElementById("mapSearchSummary");
+  const button = document.getElementById("mapNearMe");
+  if (!operationalMap) {
+    showNotice("Location search requires the street-map library.", "error");
+    return;
+  }
+  if (!navigator.geolocation) {
+    summary.textContent = "Current location is not available in this browser. Enter an address instead.";
+    return;
+  }
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  summary.textContent = "Waiting for location permission…";
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      showMapSearchPoint(
+        { lat: position.coords.latitude, lng: position.coords.longitude },
+        "Current location",
+        "Precise location was not saved or sent to the address-search service."
+      );
+    },
+    error => {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      const message = error.code === 1
+        ? "Location permission was not granted. Allow location access or enter an address instead."
+        : error.code === 3
+          ? "Current location took too long to resolve. Try again or enter an address."
+          : "Current location could not be determined. Check location services or enter an address.";
+      summary.textContent = message;
+    },
+    { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+  );
 }
 
 function renderPileups() {
@@ -3085,6 +3182,24 @@ document.getElementById("vehicleFilters").addEventListener("change", () => {
 document.getElementById("mapControls").addEventListener("input", renderOperationalMap);
 document.getElementById("mapControls").addEventListener("change", renderOperationalMap);
 document.getElementById("mapControls").addEventListener("submit", searchNearAddress);
+document.getElementById("mapNearMe").addEventListener("click", searchNearCurrentLocation);
+document.getElementById("mapSavedAddresses").addEventListener("click", event => {
+  const button = event.target.closest("[data-map-address]");
+  if (!button) return;
+  document.getElementById("mapAddressSearch").value = button.dataset.mapAddress;
+  document.getElementById("mapControls").requestSubmit();
+});
+document.getElementById("mapClearAddresses").addEventListener("click", () => {
+  mapRecentAddresses = [];
+  try {
+    localStorage.removeItem(MAP_RECENT_ADDRESSES_KEY);
+  } catch {
+    // The visible list can still be cleared when browser storage is restricted.
+  }
+  renderMapRecentAddresses();
+  document.getElementById("mapAddressSearch").focus();
+});
+renderMapRecentAddresses();
 document.getElementById("openIntake").addEventListener("click", openIntakeDialog);
 document.getElementById("openIntervention").addEventListener("click", openInterventionDialog);
 document.getElementById("closeIntervention").addEventListener("click", closeInterventionDialog);

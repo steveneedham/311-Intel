@@ -418,6 +418,8 @@ class DurableServerTest(unittest.TestCase):
         self.assertEqual(existing["sourceStatus"], "Closed")
         self.assertEqual(existing["address"], "100 Updated Test St")
         self.assertEqual(by_id["CAS-TEST-002"]["status"], "received")
+        first_fetched_at = durable["state"]["cityFeedFetchedAt"]
+        self.assertTrue(first_fetched_at)
 
         second = database.sync_city_311(fetcher=lambda: payload)
         self.assertEqual(
@@ -425,14 +427,15 @@ class DurableServerTest(unittest.TestCase):
             ("success", 0, 0, False),
         )
         status, durable = admin.request("GET", "/api/state")
-        self.assertEqual((status, durable["version"]), (200, 2))
+        self.assertEqual((status, durable["version"]), (200, 3))
         self.assertEqual(len(durable["state"]["issues"]), 2)
+        self.assertGreaterEqual(durable["state"]["cityFeedFetchedAt"], first_fetched_at)
         sync_entries = [
             entry
             for entry in database.audit(limit=20)
             if entry["action"] == "source_records_synced"
         ]
-        self.assertEqual(len(sync_entries), 1)
+        self.assertEqual(len(sync_entries), 2)
 
     def test_operator_state_boundary_and_minimum_fields(self):
         operator = ApiClient(self.base_url)

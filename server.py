@@ -329,15 +329,7 @@ class Database:
             merged, summary = merge_operational_issues(
                 state.get("issues", []), feed["records"]
             )
-            if merged == state.get("issues", []):
-                connection.rollback()
-                return {
-                    "status": "success",
-                    **summary,
-                    "source_records": feed["record_count"],
-                    "invalid": feed["invalid_count"],
-                    "state_changed": False,
-                }
+            issues_changed = merged != state.get("issues", [])
             state["issues"] = merged
             state["cityFeedFetchedAt"] = feed["fetched_at"]
             state["cityFeedRecordCount"] = feed["record_count"]
@@ -365,7 +357,8 @@ class Database:
                     now_iso(),
                     (
                         f"{summary['added']} added; {summary['updated']} source records "
-                        f"refreshed; {feed['invalid_count']} invalid"
+                        f"refreshed; {feed['invalid_count']} invalid; successful pull "
+                        "timestamp recorded"
                     ),
                     next_version,
                 ),
@@ -376,7 +369,7 @@ class Database:
             **summary,
             "source_records": feed["record_count"],
             "invalid": feed["invalid_count"],
-            "state_changed": True,
+            "state_changed": issues_changed,
             "state_version": next_version,
         }
 
