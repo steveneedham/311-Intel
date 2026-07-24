@@ -1684,6 +1684,7 @@ function generateHotspotRecommendation(zone) {
     requirementStatus: "above_current_311_requirements",
     authorityBasis: "voluntary_pilot",
     intendedEffect: "fewer_future_311_requests",
+    slaStatus: "not_applicable",
     team: responseTeamForZone(zone),
     createdAt,
     score: hotspot.score,
@@ -1827,7 +1828,7 @@ function renderVendorResponses(item) {
     <section class="vendor-response-panel" aria-label="Vendor responses for ${escapeHtml(item.id)}">
       <div class="forecast-boundary">
         <p class="eyebrow">Proactive vendor dispatch · not a 311 request</p>
-        <p>This optional early-warning record anticipates a place and timeframe that may otherwise produce a future 311 request. It is above current vendor 311 requirements, does not represent a citizen report, predict a person or intent, create an enforcement finding, or make non-participation a compliance failure.</p>
+        <p>This optional early-warning record anticipates a place and timeframe that may otherwise produce a future 311 request. It is above current vendor 311 requirements, has no SLA, and does not represent a citizen report, predict a person or intent, create an enforcement finding, or make non-participation a compliance failure.</p>
       </div>
       <div>
         <p class="eyebrow">Vendor operational record</p>
@@ -1985,6 +1986,7 @@ function submitIntervention(event) {
     requirementStatus: "above_current_311_requirements",
     authorityBasis: "voluntary_pilot",
     intendedEffect: "fewer_future_311_requests",
+    slaStatus: "not_applicable",
     team: responseTeamForZone(zone),
     createdAt,
     targetVendors,
@@ -2018,6 +2020,7 @@ function renderInterventions() {
         <div class="intervention-scope">
           <p><strong>Cadence:</strong> ${escapeHtml(label(item.cadence || "one_off"))}${item.recurrence ? ` · ${escapeHtml(item.recurrence)}` : ""}</p>
           <p><strong>Requirement status:</strong> Voluntary pilot request · above current 311 response requirements</p>
+          <p><strong>SLA status:</strong> Not applicable · requested priority is not a contractual clock</p>
           <p><strong>Intended effect:</strong> Fewer future 311 requests in the defined area and timeframe</p>
           <p><strong>Timeframe:</strong> ${escapeHtml(item.timeframeStart || item.plannedStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || item.plannedEnd || "Not recorded")}</p>
           <p><strong>Map area:</strong> ${escapeHtml(item.mapArea?.label || item.zone)}${item.mapArea ? ` · ${Number(item.mapArea.lat).toFixed(5)}, ${Number(item.mapArea.lng).toFixed(5)} · ${Number(item.mapArea.radiusMeters).toLocaleString()} m radius` : " · coordinates not recorded"}</p>
