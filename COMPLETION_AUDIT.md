@@ -184,7 +184,10 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   tests proved anonymous reads are rejected, Operator changes are limited to
   request workflow fields and new recommendations, Administrator permission is
   required for source evidence and approval, stale versions return conflict,
-  CSRF is enforced, and audit rows cannot be deleted.
+  CSRF is enforced, and audit rows cannot be deleted. The durable boundary also
+  rejects duplicate request IDs, missing intake fields, invalid dates or
+  coordinates, Operator changes to protected top-level sections, alert-rule
+  deletion or retargeting, and edits to append-only alert delivery history.
 - Complaint classification and operator attribution now expose their evidence
   in request detail. A deterministic fixture containing “Spin” and “wheelchair
   curb ramp” produced `ADA concern` and `reported-claim` until a supporting
@@ -224,6 +227,11 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   temporary port and verified to report SQLite storage, enabled scheduling,
   the configured interval, and CSP/frame/referrer/permissions headers through
   `/api/health`.
+- An optional event-window runner reads the dated external-event schedule and
+  defines one notebook execution 30 minutes before kickoff and one 30 minutes
+  after estimated event end. Three deterministic tests prove its window
+  calculations, expired-window handling, and exactly-once state. The collection
+  notebook and external scheduler are not present or claimed as deployed.
 
 ## Acceptance-test audit
 
@@ -237,7 +245,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | 6 | A recommendation cannot be dispatched before approval. | Proven locally | Browser test confirmed a recommended intervention exposes only Approve; Dispatch appears only after approval. |
 | 7 | Completing an intervention creates an outcome path with explicit dates. | Proven locally | Isolated Chromium testing completed recommended → approved → dispatched → completed, required a completion note, and created an inconclusive outcome with four ISO boundary timestamps, readable seven-day windows, baseline source IDs, and completion evidence. A separate skipped recommendation created no outcome. |
 | 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for current feed | The interface shows `City 30-day feed · 137`, preserves all 104 Base44 IDs, and recalculates counts after source hydration and local changes. Dedicated status, source-anchored date, zone, complaint-type, operator, and severity filters are exercised against loaded records. |
-| 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous reads, requires CSRF, permits Operators to assign requests, add recommendations, and submit evidence challenges, but rejects source-evidence changes, City findings, and intervention approval. Administrator transitions are accepted. |
+| 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous reads, requires CSRF, permits Operators to assign requests, add recommendations, pause alert rules, and submit evidence challenges, but rejects source-evidence changes, City findings, intervention approval, protected-section edits, malformed intake, duplicate IDs, alert-rule deletion/retargeting, and alert-history mutation. Administrator transitions are accepted. |
 | 10 | Existing records remain present after the change. | Proven locally | Base44 was accessed read-only; all 104 exported IDs remain within the 137-record City-hydrated queue. The service merge test proves source refreshes preserve local lifecycle, team, and notes. |
 | 11 | Mobile and desktop layouts preserve operational hierarchy. | Proven locally | Headless Chromium verified the Historical Trends view at 1440×1000 and 390×844. Both layouts show the source boundary, metrics, monthly volume, channels, repeat locations, and anonymous reporting-pattern evidence; document width matches the viewport at both sizes. The horizontally scrollable mobile navigation is intentional. |
 | 12 | UI text does not claim unverified functions are live. | Proven locally | The interface labels the 137-record City data as a read-only 30-day feed, distinguishes committed browser evidence from durable mode, and does not claim the optional scheduler is deployed. |
@@ -250,6 +258,41 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | Avoid repeated alerts for the same unchanged condition | Proven locally | Delivery keys combine subscription, request, lifecycle state, and severity. Eight unique states remained eight after rerender; a duplicate rule was rejected. |
 | Concise daily operating brief | Proven locally | The Brief & Alerts view computes new requests, unresolved critical items, dispatched work, and measured outcomes from the loaded state with an explicit source-window cutoff. |
 | Production alert delivery | Partial | The authenticated server now records and deduplicates scheduled delivery states. Email/SMS/push transport still requires an authorized provider and recipient management; the UI does not claim those transports are active. |
+
+## Completion-evidence decision
+
+| Required evidence | Current decision | Authoritative evidence |
+|---|---|---|
+| Live UI walkthrough across the full operational lifecycle | Proven in isolated local runtime; not yet proven on a deployed URL | 67-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, and outcome. The 15-check durable suite covers authenticated persistence and audit history. |
+| Current entity counts and representative records | Proven for the refreshed evidence bundle | Official public-feed refresh contains 137 unique requests; all 104 Base44 IDs remain present and 33 City-only records are added. |
+| Scheduled workflows active with recent successful runs | Proven in a disposable durable runtime; production deployment evidence missing | With the real scheduler and City sync enabled, the runtime recorded repeated successful `city_311_sync`, `daily_brief`, and `alert_evaluation` runs through 2026-07-24 02:08:13Z. No production host currently supplies persistent runtime records. |
+| Administrator and non-administrator permission checks | Proven locally | Browser and API tests cover Viewer, Operator, and Administrator paths, protected sections, source evidence, interventions, malformed intake, duplicate IDs, alerts, and append-only histories. |
+| Build/runtime check with no blocking errors | Proven locally; container-host build remains external | JavaScript syntax, 67 browser checks, 15 durable-browser checks, and 12 standard-library tests pass. Docker is unavailable in this workspace, so a host image build is not claimed. |
+| Existing complaint IDs preserved | Proven locally | The acceptance suite compares the 104 Base44 source IDs with the 137-record hydrated queue and requires every ID to remain present. |
+
+The product behavior is implemented and locally verified. Completion under the
+spec remains intentionally unclaimed until a controlled deployment supplies a
+live URL, successful container/runtime check, and recent scheduled-run evidence.
+
+### Disposable runtime evidence
+
+The immutable feature commit `62e4137` was exported into a temporary directory
+and started with SQLite, the scheduler, and read-only City sync enabled. The
+health endpoint reported `status: ok`, SQLite storage, a two-second evaluation
+interval, and both scheduler and City sync enabled. The initialized state held
+137 unique request IDs and all 104 preserved Base44 IDs. Multiple real scheduler
+cycles independently recorded:
+
+- `city_311_sync`: success, 137 source records, zero invalid, zero duplicate
+  additions, and no state change for an unchanged feed;
+- `daily_brief`: success, four requests in the latest source-anchored 24-hour
+  window;
+- `alert_evaluation`: success, with no subscriptions and therefore no delivery
+  states.
+
+The disposable service was stopped after inspection to avoid unnecessary public
+feed requests. Its temporary database is runtime evidence, not a production
+deployment or durable backup.
 
 ## Reproducible local verification
 
