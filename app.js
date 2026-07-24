@@ -2417,8 +2417,54 @@ document.querySelectorAll(".nav-item").forEach(button => {
       renderOperationalMap();
       window.setTimeout(() => operationalMap?.invalidateSize(), 0);
     }
+    history.replaceState(null, "", `#${button.dataset.view}`);
+    button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   });
 });
+
+let deferredInstallPrompt = null;
+const installButton = document.getElementById("installApp");
+const connectionStatus = document.getElementById("connectionStatus");
+
+function renderConnectionStatus() {
+  connectionStatus.hidden = navigator.onLine;
+}
+
+window.addEventListener("online", renderConnectionStatus);
+window.addEventListener("offline", renderConnectionStatus);
+renderConnectionStatus();
+
+window.addEventListener("beforeinstallprompt", event => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  installButton.hidden = false;
+});
+
+installButton.addEventListener("click", async () => {
+  if (!deferredInstallPrompt) return;
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+  installButton.hidden = true;
+});
+
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  installButton.hidden = true;
+  showNotice("311 Field Intelligence is installed on this device.", "success");
+});
+
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(error => {
+      console.warn("Offline support could not be enabled.", error);
+    });
+  });
+}
+
+const initialView = window.location.hash.slice(1);
+const initialViewButton = document.querySelector(`.nav-item[data-view="${CSS.escape(initialView)}"]`);
+if (initialViewButton) initialViewButton.click();
 
 document.getElementById("filters").addEventListener("input", renderQueue);
 document.getElementById("filters").addEventListener("change", renderQueue);
