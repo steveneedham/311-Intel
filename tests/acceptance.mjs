@@ -75,6 +75,7 @@ try {
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
   check(await page.locator('link[rel="manifest"][href="manifest.webmanifest"]').count() === 1, "PWA manifest is linked");
+  check((await page.locator(".site-footer").innerText()).includes("© 2026 Steven Needham") && (await page.locator(".footer-tagline").innerText()) === "Made in Columbus, Ohio.", "copyright and Columbus tagline render");
   check(await page.evaluate(async () => {
     const manifest = await fetch("manifest.webmanifest").then(response => response.json());
     return manifest.display === "standalone" && manifest.icons.some(icon => icon.sizes === "192x192") && manifest.icons.some(icon => icon.sizes === "512x512");
