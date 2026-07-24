@@ -4,8 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Operational intelligence for Columbus 311 micromobility requests.">
+  <meta name="theme-color" content="#f6f5f0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="311 Intel">
   <title>311 Field Intelligence</title>
-  <link rel="icon" href="data:,">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-V40E4MZEMV"></script>
   <script>
@@ -35,6 +42,7 @@
         </select>
       </label>
       <button class="quiet-button" id="authButton" type="button" hidden>Sign in</button>
+      <button class="quiet-button install-button" id="installApp" type="button" hidden>Install app</button>
       <label class="quiet-button file-button">
         Import JSON
         <input id="importFile" type="file" accept="application/json,.json">
@@ -44,6 +52,9 @@
     </div>
   </header>
   <div class="data-notice" id="dataNotice" role="status" aria-live="polite"></div>
+  <div class="connection-status" id="connectionStatus" role="status" aria-live="polite" hidden>
+    Offline · showing the most recently saved app and data
+  </div>
 
   <nav class="section-nav" aria-label="Primary">
     <button class="nav-item active" type="button" data-view="operations">Operations</button>
