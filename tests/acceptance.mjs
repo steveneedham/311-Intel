@@ -336,6 +336,41 @@ try {
   check(lifecycle.intervention.transitions.map(item => item.status).join(",") === "recommended,approved,dispatched,completed", "all lifecycle transitions are recorded");
   check(Boolean(lifecycle.outcome?.baselineStart && lifecycle.outcome?.postEnd), "completion creates explicit outcome windows");
 
+  await page.locator("#openIntervention").click();
+  await page.locator("#interventionTypeInput").selectOption("policy");
+  await page.locator("#interventionZoneInput").fill("Harrison West");
+  await page.locator("#interventionStrategyInput").fill("Mandatory parking in this area");
+  await page.locator("#interventionRationaleInput").fill("Repeated sidewalk-blocking requests support a longer-term designated-parking intervention.");
+  await page.locator('#interventionForm button[type="submit"]').click();
+  const policyIntervention = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
+    return state.interventions.find(item => item.strategy === "Mandatory parking in this area");
+  });
+  check(policyIntervention?.interventionType === "policy" && policyIntervention.targetVendors.length === 2, "long-term policy intervention preserves its type and responding vendors");
+
+  await page.locator("#openIntervention").click();
+  await page.locator("#interventionTypeInput").selectOption("experiment");
+  await page.locator("#interventionZoneInput").fill("Harrison West");
+  await page.locator("#interventionStrategyInput").fill("Two-week mandatory-parking experiment");
+  await page.locator("#interventionRationaleInput").fill("Test whether a defined parking rule reduces repeat obstruction signals before permanent adoption.");
+  await page.locator("#interventionHypothesisInput").fill("Mandatory parking will reduce independent sidewalk-blocking requests in the test area.");
+  await page.locator("#interventionSuccessMeasureInput").fill("At least 25% fewer independent 311 requests");
+  await page.locator("#interventionStartInput").fill("2026-08-01");
+  await page.locator("#interventionEndInput").fill("2026-08-15");
+  await page.locator('#interventionForm button[type="submit"]').click();
+  const experimentIntervention = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
+    return state.interventions.find(item => item.strategy === "Two-week mandatory-parking experiment");
+  });
+  check(
+    experimentIntervention?.interventionType === "experiment" &&
+    experimentIntervention.hypothesis.includes("reduce independent") &&
+    experimentIntervention.successMeasure.includes("25%") &&
+    experimentIntervention.plannedStart === "2026-08-01" &&
+    experimentIntervention.plannedEnd === "2026-08-15",
+    "experiment preserves its hypothesis, measure, and planned window"
+  );
+
   await page.locator('[data-view="site-metrics"]').click();
   const metricsText = await page.locator("#site-metrics").innerText();
   check(metricsText.includes("G-V40E4MZEMV") && metricsText.includes("Reporting connection required"), "metrics page distinguishes configured collection from unconnected aggregate reporting");
