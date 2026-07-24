@@ -1,19 +1,22 @@
 :root {
   color-scheme: light;
-  --ink: #18201d;
-  --muted: #66706b;
-  --paper: #f6f5f0;
-  --panel: #fffefb;
-  --line: #d9d9d2;
-  --green: #1f5b46;
-  --green-soft: #dfeae4;
-  --amber: #956b1d;
-  --amber-soft: #f4ead3;
-  --red: #9b3f35;
-  --red-soft: #f2dfdc;
-  --blue: #355f79;
-  --blue-soft: #e0e9ee;
-  --shadow: 0 16px 50px rgba(24, 32, 29, 0.06);
+  --ink: #182b3a;
+  --muted: #5c6b76;
+  --paper: #f4f7f9;
+  --panel: #ffffff;
+  --line: #cad5dc;
+  --green: #075d8d;
+  --green-soft: #deedf5;
+  --amber: #8a6100;
+  --amber-soft: #f7edcf;
+  --red: #c62828;
+  --red-soft: #f7e2e2;
+  --blue: #075d8d;
+  --blue-soft: #deedf5;
+  --civic-blue: #075d8d;
+  --civic-blue-dark: #063f61;
+  --civic-red: #e1252f;
+  --shadow: 0 12px 36px rgba(7, 63, 97, 0.08);
 }
 
 * { box-sizing: border-box; }
@@ -25,7 +28,7 @@ body {
   overflow-x: hidden;
   color: var(--ink);
   background:
-    linear-gradient(rgba(24, 32, 29, 0.025) 1px, transparent 1px),
+    linear-gradient(rgba(7, 63, 97, 0.025) 1px, transparent 1px),
     var(--paper);
   background-size: 100% 32px;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -48,23 +51,76 @@ button, select, input, textarea { touch-action: manipulation; }
 .skip-link:focus { top: 16px; }
 
 .masthead {
+  position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 24px;
-  padding: 40px clamp(20px, 4vw, 64px) 26px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(246, 245, 240, 0.94);
+  padding: 34px clamp(20px, 4vw, 64px) 28px;
+  border-top: 7px solid var(--civic-red);
+  border-bottom: 0;
+  color: white;
+  background: var(--civic-blue);
 }
 
 .masthead h1, h2, h3, p { margin-top: 0; }
 .masthead h1 {
   margin-bottom: 0;
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: clamp(2rem, 4vw, 3.6rem);
-  font-weight: 400;
-  letter-spacing: -0.035em;
+  font-weight: 750;
+  letter-spacing: -0.03em;
 }
+
+.city-wordmark {
+  margin-bottom: 18px;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.city-wordmark span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.15em;
+}
+
+.service-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+}
+
+.demo-label {
+  display: inline-flex;
+  margin: 13px 0 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  color: white;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.prototype-label {
+  max-width: 560px;
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.prototype-label a { color: white; text-underline-offset: 3px; }
 
 .eyebrow {
   margin-bottom: 8px;
@@ -74,6 +130,8 @@ button, select, input, textarea { touch-action: manipulation; }
   letter-spacing: 0.11em;
   text-transform: uppercase;
 }
+
+.masthead .eyebrow { color: rgba(255, 255, 255, 0.72); }
 
 .masthead-meta {
   display: flex;
@@ -92,6 +150,8 @@ button, select, input, textarea { touch-action: manipulation; }
   text-transform: uppercase;
 }
 
+.masthead .role-control, .masthead .live-mark { color: rgba(255, 255, 255, 0.82); }
+
 .role-control select {
   padding: 4px 22px 4px 6px;
   border: 1px solid var(--line);
@@ -99,6 +159,11 @@ button, select, input, textarea { touch-action: manipulation; }
   background: var(--panel);
   font-size: 0.72rem;
   text-transform: none;
+}
+
+.masthead .quiet-button {
+  color: white;
+  border-bottom-color: rgba(255, 255, 255, 0.68);
 }
 
 .live-mark {
@@ -166,7 +231,7 @@ button, select, input, textarea { touch-action: manipulation; }
   gap: 4px;
   padding: 0 clamp(20px, 4vw, 64px);
   border-bottom: 1px solid var(--line);
-  background: rgba(246, 245, 240, 0.96);
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(12px);
 }
 
@@ -182,7 +247,7 @@ button, select, input, textarea { touch-action: manipulation; }
 }
 
 .nav-item.active {
-  border-bottom-color: var(--green);
+  border-bottom-color: var(--civic-red);
   color: var(--ink);
 }
 
@@ -642,15 +707,15 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
 
 @media (max-width: 640px) {
   body { padding-bottom: env(safe-area-inset-bottom); background-size: 100% 28px; }
-  .masthead { gap: 18px; padding: calc(22px + env(safe-area-inset-top)) 16px 18px; }
+  .masthead { gap: 18px; padding: calc(20px + env(safe-area-inset-top)) 16px 18px; border-top-width: 5px; }
   .masthead h1 { font-size: clamp(2rem, 10vw, 2.8rem); line-height: 0.98; }
   .masthead, .section-heading { align-items: flex-start; flex-direction: column; }
   .section-actions { width: 100%; align-items: flex-start; flex-direction: column; }
   .masthead-meta { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 0; }
   .masthead-meta > * { min-width: 0; }
   .live-mark, .role-control { grid-column: 1 / -1; }
-  .quiet-button, .file-button { min-height: 44px; padding: 11px 10px; border: 1px solid var(--line); text-align: center; }
-  .install-button { color: white; border-color: var(--green); background: var(--green); }
+  .masthead .quiet-button, .masthead .file-button { min-height: 44px; padding: 11px 10px; border: 1px solid rgba(255,255,255,0.42); text-align: center; }
+  .masthead .install-button { color: var(--civic-blue-dark); border-color: white; background: white; }
   .section-nav {
     width: 100%;
     max-width: 100vw;
