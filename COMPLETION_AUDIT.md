@@ -125,6 +125,18 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   dispatched, and completed it. Completion without a note was rejected.
   `OUT-002` was then created with explicit windows and evidence. A second
   recommendation, `INT-004`, proved the skipped path and created no outcome.
+- The packaged `npm test` acceptance suite passed all 28 checks on
+  2026-07-23. It starts an isolated local server, uses a disposable browser
+  profile and fixture, and verifies source hydration, GA4 configuration,
+  historical privacy boundaries, event evidence, alert deduplication, role
+  restrictions, the complete intervention lifecycle, outcome windows, no
+  desktop JavaScript errors, and mobile layout containment.
+- The GBFS refresh pipeline now discovers timestamped archive files
+  automatically instead of relying on a hard-coded July 23 source path. It
+  selected `20260723T044626Z` from nine unique observations, preserved all
+  3,578 valid positions, and reported zero rejected rows. A disposable
+  two-snapshot unit test verifies newest-snapshot selection, invalid-row
+  accounting, vendor counts, and Goodale watch-history generation.
 
 ## Acceptance-test audit
 
@@ -151,6 +163,16 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | Avoid repeated alerts for the same unchanged condition | Proven locally | Delivery keys combine subscription, request, lifecycle state, and severity. Eight unique states remained eight after rerender; a duplicate rule was rejected. |
 | Concise daily operating brief | Proven locally | The Brief & Alerts view computes new requests, unresolved critical items, dispatched work, and measured outcomes from the loaded state with an explicit source-window cutoff. |
 | Production alert delivery | Not implemented | Email/SMS/push delivery requires an authorized backend and recipient management. The UI labels all current delivery states as local previews. |
+
+## Reproducible local verification
+
+- Install the declared Playwright development dependency with `npm install`.
+- Run `npm test` from the project root.
+- Expected current result: `passed: 28`.
+- Run `npm run refresh:gbfs` to deterministically rebuild the current positions
+  and complete watch history from the configured snapshot archive.
+- The suite is local-only and does not read from or write to Base44, GitHub, or
+  City systems.
 
 ## Remaining completion gates
 
