@@ -1644,9 +1644,28 @@ function generateHotspotRecommendation(zone) {
   const attributedVendors = [...new Set(
     hotspot.issues.map(issue => issue.operator).filter(operator => ["Spin", "Veo"].includes(operator))
   )];
+  const mappedIssues = hotspot.issues.filter(issue => Number.isFinite(issue.lat) && Number.isFinite(issue.lng));
+  const mapCenter = mappedIssues.length ? {
+    lat: mappedIssues.reduce((sum, issue) => sum + issue.lat, 0) / mappedIssues.length,
+    lng: mappedIssues.reduce((sum, issue) => sum + issue.lng, 0) / mappedIssues.length
+  } : { lat: 39.9612, lng: -82.9988 };
+  const mapRadius = mappedIssues.length
+    ? Math.min(1609, Math.max(150, ...mappedIssues.map(issue => distanceMeters(issue, mapCenter) + 75)))
+    : 250;
   const item = {
     id: nextInterventionId(),
     interventionType: "field_response",
+    cadence: "one_off",
+    recurrence: "",
+    timeframeStart: createdAt.slice(0, 10),
+    timeframeEnd: createdAt.slice(0, 10),
+    mapArea: {
+      label: zone,
+      type: "circle",
+      lat: mapCenter.lat,
+      lng: mapCenter.lng,
+      radiusMeters: Math.round(mapRadius)
+    },
     zone,
     strategy: hotspot.critical
       ? "Accessibility obstruction field response"
@@ -1810,11 +1829,18 @@ function renderVendorResponses(item) {
 
 function toggleInterventionExperimentFields() {
   const type = document.getElementById("interventionTypeInput").value;
-  const fields = document.getElementById("interventionExperimentFields");
+  const cadence = document.getElementById("interventionCadenceInput").value;
+  const experimentFields = document.getElementById("interventionExperimentFields");
+  const recurrenceFields = document.getElementById("interventionRecurrenceFields");
   const experiment = type === "experiment";
-  fields.hidden = !experiment;
-  fields.querySelectorAll("input, textarea").forEach(control => {
+  const repeating = cadence === "repeating";
+  experimentFields.hidden = !experiment;
+  experimentFields.querySelectorAll("input, textarea").forEach(control => {
     control.required = experiment;
+  });
+  recurrenceFields.hidden = !repeating;
+  recurrenceFields.querySelectorAll("input, textarea").forEach(control => {
+    control.required = repeating;
   });
 }
 
@@ -1838,6 +1864,8 @@ function submitIntervention(event) {
   if (!requireRole("operator", "create an intervention")) return;
   const error = document.getElementById("interventionError");
   const interventionType = document.getElementById("interventionTypeInput").value;
+  const cadence = document.getElementById("interventionCadenceInput").value;
+  const recurrence = document.getElementById("interventionRecurrenceInput").value.trim();
   const strategy = document.getElementById("interventionStrategyInput").value.trim();
   const zone = document.getElementById("interventionZoneInput").value.trim();
   const rationale = document.getElementById("interventionRationaleInput").value.trim();
@@ -1855,22 +1883,42 @@ function submitIntervention(event) {
   }
   const hypothesis = document.getElementById("interventionHypothesisInput").value.trim();
   const successMeasure = document.getElementById("interventionSuccessMeasureInput").value.trim();
-  const plannedStart = document.getElementById("interventionStartInput").value;
-  const plannedEnd = document.getElementById("interventionEndInput").value;
-  if (interventionType === "experiment") {
-    if (hypothesis.length < 12 || successMeasure.length < 8 || !plannedStart || !plannedEnd) {
-      error.textContent = "Experiments require a hypothesis, success measure, and start and end dates.";
-      return;
-    }
-    if (new Date(`${plannedEnd}T12:00:00`) <= new Date(`${plannedStart}T12:00:00`)) {
-      error.textContent = "The experiment end date must be after its start date.";
-      return;
-    }
+  const timeframeStart = document.getElementById("interventionStartInput").value;
+  const timeframeEnd = document.getElementById("interventionEndInput").value;
+  const latitude = Number(document.getElementById("interventionLatitudeInput").value);
+  const longitude = Number(document.getElementById("interventionLongitudeInput").value);
+  const radiusMeters = Number(document.getElementById("interventionRadiusInput").value);
+  if (!timeframeStart || !timeframeEnd || new Date(`${timeframeEnd}T12:00:00`) < new Date(`${timeframeStart}T12:00:00`)) {
+    error.textContent = "Add a valid start and end or review date.";
+    return;
+  }
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(radiusMeters) || radiusMeters < 25 || radiusMeters > 5000) {
+    error.textContent = "Define the map area with valid coordinates and a 25–5,000 metre radius.";
+    return;
+  }
+  if (cadence === "repeating" && recurrence.length < 5) {
+    error.textContent = "Describe when the repeating intervention occurs.";
+    return;
+  }
+  if (interventionType === "experiment" && (hypothesis.length < 12 || successMeasure.length < 8)) {
+    error.textContent = "Experiments require a hypothesis and success measure.";
+    return;
   }
   const createdAt = new Date().toISOString();
   const item = {
     id: nextInterventionId(),
     interventionType,
+    cadence,
+    recurrence: cadence === "repeating" ? recurrence : "",
+    timeframeStart,
+    timeframeEnd,
+    mapArea: {
+      label: zone,
+      type: "circle",
+      lat: latitude,
+      lng: longitude,
+      radiusMeters
+    },
     zone,
     strategy,
     rationale,
@@ -1884,12 +1932,12 @@ function submitIntervention(event) {
     eventEvidence: [],
     hypothesis: interventionType === "experiment" ? hypothesis : "",
     successMeasure: interventionType === "experiment" ? successMeasure : "",
-    plannedStart: interventionType === "experiment" ? plannedStart : "",
-    plannedEnd: interventionType === "experiment" ? plannedEnd : "",
+    plannedStart: interventionType === "experiment" ? timeframeStart : "",
+    plannedEnd: interventionType === "experiment" ? timeframeEnd : "",
     transitions: [{ status: "recommended", at: createdAt, actor: `local-${currentRole}` }]
   };
   state.interventions.push(item);
-  recordAudit("intervention_created", item.id, `${label(interventionType)} · ${zone} · ${targetVendors.join(", ")}`);
+  recordAudit("intervention_created", item.id, `${label(interventionType)} · ${label(cadence)} · ${zone} · ${targetVendors.join(", ")}`);
   saveState();
   closeInterventionDialog();
   renderAll();
@@ -1905,13 +1953,19 @@ function renderInterventions() {
         <p class="eyebrow">${escapeHtml(label(item.interventionType || "field_response"))}</p>
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${escapeHtml(item.rationale)}</p>
+        <div class="intervention-scope">
+          <p><strong>Cadence:</strong> ${escapeHtml(label(item.cadence || "one_off"))}${item.recurrence ? ` · ${escapeHtml(item.recurrence)}` : ""}</p>
+          <p><strong>Timeframe:</strong> ${escapeHtml(item.timeframeStart || item.plannedStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || item.plannedEnd || "Not recorded")}</p>
+          <p><strong>Map area:</strong> ${escapeHtml(item.mapArea?.label || item.zone)}${item.mapArea ? ` · ${Number(item.mapArea.lat).toFixed(5)}, ${Number(item.mapArea.lng).toFixed(5)} · ${Number(item.mapArea.radiusMeters).toLocaleString()} m radius` : " · coordinates not recorded"}</p>
+          ${item.mapArea ? `<button class="quiet-button" type="button" data-view-intervention-area="${escapeHtml(item.id)}">View map area</button>` : ""}
+        </div>
         ${item.sourceIssueIds?.length ? `<p class="intervention-evidence"><strong>Source records:</strong> ${item.sourceIssueIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : ""}
         ${item.eventEvidence?.length ? `<p class="intervention-evidence"><strong>Event-window context:</strong> ${item.eventEvidence.map(evidence => `${escapeHtml(evidence.issueId)} · ${escapeHtml(evidence.eventName)} · ${escapeHtml(label(evidence.window))} · ${evidence.venueDistanceMeters} m from venue`).join("; ")}</p>` : ""}
         ${item.interventionType === "experiment" ? `
           <div class="experiment-plan">
             <p><strong>Hypothesis:</strong> ${escapeHtml(item.hypothesis)}</p>
             <p><strong>Success measure:</strong> ${escapeHtml(item.successMeasure)}</p>
-            <p><strong>Planned window:</strong> ${escapeHtml(item.plannedStart)}–${escapeHtml(item.plannedEnd)}</p>
+            <p><strong>Planned window:</strong> ${escapeHtml(item.timeframeStart || item.plannedStart)}–${escapeHtml(item.timeframeEnd || item.plannedEnd)}</p>
           </div>` : ""}
         ${item.completionNotes ? `<p class="completion-note"><strong>Completion note:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
         ${renderVendorResponses(item)}
@@ -1936,6 +1990,16 @@ function renderInterventions() {
         </label>` : ""}
       </div>
     </article>`).join("") : `<div class="empty-card">No interventions have been generated.</div>`;
+  list.querySelectorAll("button[data-view-intervention-area]").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = state.interventions.find(intervention => intervention.id === button.dataset.viewInterventionArea);
+      if (!item?.mapArea) return;
+      document.querySelector('.nav-item[data-view="map"]')?.click();
+      document.getElementById("mapInterventionsToggle").checked = true;
+      renderOperationalMap();
+      operationalMap?.setView([item.mapArea.lat, item.mapArea.lng], item.mapArea.radiusMeters <= 250 ? 16 : item.mapArea.radiusMeters <= 750 ? 14 : 13);
+    });
+  });
   list.querySelectorAll("button[data-vendor-response]").forEach(button => {
     button.addEventListener("click", () => {
       const item = state.interventions.find(intervention => intervention.id === button.dataset.id);
@@ -2018,6 +2082,11 @@ function renderInterventions() {
           baselineSourceIds: baselineIssues.map(issue => issue.id),
           completionNotes: item.completionNotes,
           interventionType: item.interventionType || "field_response",
+          cadence: item.cadence || "one_off",
+          recurrence: item.recurrence || "",
+          timeframeStart: item.timeframeStart || "",
+          timeframeEnd: item.timeframeEnd || "",
+          mapArea: item.mapArea || null,
           hypothesis: item.hypothesis || "",
           successMeasure: item.successMeasure || "",
           plannedStart: item.plannedStart || "",
@@ -2110,6 +2179,7 @@ function renderOutcomes() {
         <p>${reduction === null ? "The post-intervention observation window is not complete." : `${item.baseline} baseline requests compared with ${item.post} afterward—a ${reduction}% reduction.`}</p>
         ${item.completionNotes ? `<p><strong>Completion evidence:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
         ${item.interventionType === "experiment" ? `<p><strong>Experiment:</strong> ${escapeHtml(item.hypothesis)}<br><strong>Success measure:</strong> ${escapeHtml(item.successMeasure)}</p>` : ""}
+        <p><strong>Scope:</strong> ${escapeHtml(label(item.cadence || "one_off"))} · ${escapeHtml(item.timeframeStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || "Not recorded")} · ${escapeHtml(item.mapArea?.label || item.zone)}</p>
         ${item.baselineSourceIds?.length ? `<p><strong>Baseline records:</strong> ${item.baselineSourceIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : `<p><strong>Baseline records:</strong> none in the defined window.</p>`}
         <div class="record-meta"><span>Baseline: ${escapeHtml(item.baselineWindow)}</span><span>Post-period: ${escapeHtml(item.postWindow)}</span><span>${escapeHtml(item.interventionId)}</span></div>
       </div>
@@ -2287,6 +2357,10 @@ function renderOperationalMap() {
   const showFlags = document.getElementById("mapFlagsToggle").checked;
   const showWatches = document.getElementById("mapWatchesToggle").checked;
   const showPolicies = document.getElementById("mapPoliciesToggle").checked;
+  const showInterventions = document.getElementById("mapInterventionsToggle").checked;
+  const activeInterventions = state.interventions.filter(item =>
+    item.mapArea && !["completed", "skipped"].includes(item.status)
+  );
   const bounds = [];
   if (showPolicies && policyBoundaryState.status === "ready") {
     policyBoundaryState.boundaries.forEach(boundary => {
@@ -2308,6 +2382,30 @@ function renderOperationalMap() {
       ).bindPopup(
         `<strong>${escapeHtml(boundary.policy_name)}</strong><br>${escapeHtml(label(boundary.boundary_type))}<br>${escapeHtml(boundary.description)}<br>Published policy context; not proof of a violation.`
       ).addTo(operationalMapLayers);
+    });
+  }
+  if (showInterventions) {
+    activeInterventions.forEach(item => {
+      const point = [item.mapArea.lat, item.mapArea.lng];
+      bounds.push(point);
+      const color = item.interventionType === "experiment" ? "#7a4b76"
+        : item.cadence === "rule_policy_change" ? "#075d8d"
+          : "#2f6b4f";
+      L.circle(point, {
+        radius: item.mapArea.radiusMeters,
+        color,
+        weight: 2.5,
+        fillColor: color,
+        fillOpacity: 0.12,
+        dashArray: item.interventionType === "experiment" ? "6 5" : null,
+        className: "intervention-area-layer"
+      }).bindPopup(`
+        <strong>${escapeHtml(item.strategy)}</strong><br>
+        ${escapeHtml(label(item.interventionType || "field_response"))} · ${escapeHtml(label(item.cadence || "one_off"))}<br>
+        ${escapeHtml(item.mapArea.label || item.zone)} · ${Number(item.mapArea.radiusMeters).toLocaleString()} m radius<br>
+        ${escapeHtml(item.timeframeStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || "Not recorded")}<br>
+        ${escapeHtml(label(item.status))}
+      `).addTo(operationalMapLayers);
     });
   }
   complaints.forEach(issue => {
@@ -2368,7 +2466,7 @@ function renderOperationalMap() {
     });
   }
   document.getElementById("mapResultCount").textContent =
-    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}${showPolicies && policyBoundaryState.status === "ready" ? ` · ${policyBoundaryState.summary.boundary_feature_count} policy features` : ""}`;
+    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}${showPolicies && policyBoundaryState.status === "ready" ? ` · ${policyBoundaryState.summary.boundary_feature_count} policy features` : ""}${showInterventions ? ` · ${activeInterventions.length} intervention areas` : ""}`;
   if (!operationalMapHasFit && bounds.length) {
     operationalMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
     operationalMapHasFit = true;
