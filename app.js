@@ -604,6 +604,7 @@ async function hydrateFromVerifiedSnapshot() {
       };
     });
     state.snapshotExportedAt = snapshot.exported_at || "";
+    state.base44SnapshotCount = normalized.length;
     saveState();
     const mode = document.getElementById("dataMode");
     mode.innerHTML = `<span></span> Base44 snapshot · ${state.issues.length}`;
@@ -613,6 +614,75 @@ async function hydrateFromVerifiedSnapshot() {
     console.warn("Verified Base44 snapshot unavailable; using local trial data.", error);
     return false;
   }
+}
+
+async function hydrateFromCityFeed() {
+  try {
+    const response = await fetch("columbus-311-current.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`City feed request failed with ${response.status}`);
+    const feed = await response.json();
+    const records = Array.isArray(feed.records) ? feed.records : [];
+    if (!records.length) throw new Error("City feed contains no records");
+    const existingById = new Map(state.issues.map(issue => [issue.id, issue]));
+    let added = 0;
+    let refreshed = 0;
+    records.forEach(record => {
+      const normalized = normalizeImportedIssue(record);
+      if (!normalized) return;
+      const sourceFields = {
+        address: normalized.address,
+        zone: normalized.zone,
+        reportedAt: normalized.reportedAt,
+        lat: normalized.lat,
+        lng: normalized.lng,
+        sourceStatus: record.source_status || "",
+        sourceStatusAt: record.source_status_at || "",
+        sourceUpdatedAt: record.source_updated_at || "",
+        sourceName: record.source_name || "City of Columbus 311 public map",
+        sourceFeedUrl: record.source_url || "https://gis.columbus.gov/coc311map/",
+        councilDistrict: record.council_district || "",
+        zip: record.zip || ""
+      };
+      const existing = existingById.get(normalized.id);
+      if (existing) {
+        Object.assign(existing, sourceFields);
+        refreshed += 1;
+        return;
+      }
+      const issue = { ...normalized, ...sourceFields };
+      state.issues.push(issue);
+      existingById.set(issue.id, issue);
+      added += 1;
+    });
+    state.cityFeedFetchedAt = feed.fetched_at || "";
+    state.cityFeedRecordCount = records.length;
+    state.importReview ||= [];
+    const feedReview = Array.isArray(feed.review) ? feed.review : [];
+    feedReview.forEach((item, index) => {
+      state.importReview.push({
+        id: `city-feed-${item.source_id || index}`,
+        sourceId: item.source_id || `City feed row ${index + 1}`,
+        reasons: item.reasons || ["invalid public-feed record"],
+        fileName: "City of Columbus 311 public feed",
+        reviewedAt: feed.fetched_at || new Date().toISOString()
+      });
+    });
+    state.importReview = state.importReview.slice(-100);
+    saveState();
+    const mode = document.getElementById("dataMode");
+    mode.innerHTML = `<span></span> City 30-day feed · ${records.length}`;
+    mode.title = `${refreshed} preserved Base44 records refreshed; ${added} additional City records added read-only${feed.fetched_at ? ` · fetched ${new Date(feed.fetched_at).toLocaleString()}` : ""}`;
+    return { added, refreshed, total: state.issues.length };
+  } catch (error) {
+    console.warn("Current Columbus 311 public feed unavailable.", error);
+    return null;
+  }
+}
+
+async function hydrateOperationalSources() {
+  const snapshotLoaded = await hydrateFromVerifiedSnapshot();
+  const cityFeed = await hydrateFromCityFeed();
+  return { snapshotLoaded, cityFeed };
 }
 
 async function hydrateVehiclePositions() {
@@ -1126,6 +1196,7 @@ function renderDetail() {
     <span class="badge badge-${issue.priority}">${label(issue.priority)}</span>
     <dl class="evidence">
       <div><dt>Source evidence</dt><dd>${escapeHtml(issue.descriptor)}</dd></div>
+      ${issue.sourceStatus ? `<div><dt>City source status</dt><dd>${escapeHtml(issue.sourceStatus)} · read-only public feed${issue.sourceUpdatedAt ? ` · updated ${new Date(issue.sourceUpdatedAt).toLocaleString()}` : ""}</dd></div>` : ""}
       ${issue.crossReferenceStatus ? `<div><dt>OneView status</dt><dd>${escapeHtml(label(issue.crossReferenceStatus))} · read-only cross-reference</dd></div>` : ""}
       ${issue.crossReferenceEvidence ? `<div><dt>Cross-reference evidence</dt><dd>${escapeHtml(issue.crossReferenceEvidence)}</dd></div>` : ""}
       ${/ADA/i.test(issue.type) || issue.accessibilityEvidence !== "not_assessed" ? `<div><dt>Accessibility evidence</dt><dd>${escapeHtml(label(issue.accessibilityEvidence || "not_assessed"))}</dd></div>` : ""}
@@ -1137,6 +1208,7 @@ function renderDetail() {
       <div><dt>Attribution</dt><dd>${escapeHtml(label(issue.operatorConfidence || "unattributed"))}</dd></div>
       <div><dt>Attribution evidence</dt><dd>${escapeHtml(issue.operatorEvidence || "No operator evidence is available.")}</dd></div>
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
+      ${issue.councilDistrict ? `<div><dt>Council district</dt><dd>${escapeHtml(issue.councilDistrict)}</dd></div>` : ""}
     </dl>
     <div class="operator-evidence">
       <strong>OneView lookup</strong>
@@ -2409,13 +2481,13 @@ document.getElementById("resetDemo").addEventListener("click", async () => {
   selectedIssueId = null;
   document.getElementById("filters").reset();
   localStorage.removeItem(STORAGE_KEY);
-  const restoredSnapshot = await hydrateFromVerifiedSnapshot();
+  const restoredSources = await hydrateOperationalSources();
   renderAll();
-  showNotice(restoredSnapshot ? "Local changes cleared; verified Base44 snapshot restored." : "Local trial data restored.", "success");
+  showNotice(restoredSources.snapshotLoaded ? "Local changes cleared; verified source records restored." : "Local trial data restored.", "success");
 });
 
 Promise.all([
-  hydrateFromVerifiedSnapshot(),
+  hydrateOperationalSources(),
   hydrateVehiclePositions(),
   hydrateSlaEvidence(),
   hydrateHistorical311(),
