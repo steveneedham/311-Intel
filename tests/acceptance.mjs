@@ -231,6 +231,11 @@ try {
   check(reviewText.includes("CAS-INCOMPLETE-REVIEW") && reviewText.includes("address is required") && reviewText.includes("reported time is missing or invalid"), "incomplete import is surfaced with actionable validation reasons");
   check(await page.locator('#issueRows tr[data-id="CAS-INCOMPLETE-REVIEW"]').count() === 0, "rejected import never enters the operational queue");
   await page.locator('[data-view="hotspots"]').click();
+  const policyText = await page.locator("#policyBoundaryAnalysis").innerText();
+  console.error(policyText);
+  check(policyText.includes("26") && policyText.includes("within 25 m") && policyText.includes("of 104"), "published policy boundary proximity summary renders");
+  check(policyText.includes("matched control set") && policyText.includes("not evidence that a geofence caused"), "policy proximity does not claim causation or enrichment");
+  check(await page.locator("#mapPoliciesToggle").isChecked(), "published policy boundary map layer is enabled by default");
   const recommendationButton = page.locator('[data-recommend-zone="Acceptance Zone"]');
   check(await recommendationButton.isEnabled(), "qualifying hotspot exposes recommendation action to Operator");
   await recommendationButton.click();

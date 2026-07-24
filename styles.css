@@ -623,6 +623,9 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .evidence-metrics { grid-template-columns: 1fr 1fr; }
   .evidence-metrics div:nth-child(3) { border-left: 0; border-top: 1px solid var(--line); }
   .evidence-metrics div:nth-child(4) { border-top: 1px solid var(--line); }
+  .policy-metrics { grid-template-columns: 1fr 1fr; }
+  .policy-metrics p:nth-child(2) { border-right: 0; }
+  .policy-metrics p:nth-child(n+3) { border-top: 1px solid var(--line); }
   .detail-panel { position: static; }
   .filters { grid-template-columns: 1fr 1fr; }
 }
@@ -654,6 +657,9 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .brief-heading { flex-direction: column; }
   .brief-grid { grid-template-columns: 1fr; }
   .brief-grid section + section { border-top: 1px solid var(--line); border-left: 0; }
+  .policy-metrics { grid-template-columns: 1fr; }
+  .policy-metrics p { border-right: 0; }
+  .policy-metrics p + p { border-top: 1px solid var(--line); }
   .subscription-form { grid-template-columns: 1fr; }
   .subscription-item, .alert-delivery { align-items: flex-start; flex-direction: column; }
   .alert-delivery > div:last-child { text-align: left; }

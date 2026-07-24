@@ -9,7 +9,7 @@
     "serve": "python3 server.py",
     "serve:static": "python3 -m http.server 8765 --bind 127.0.0.1",
     "refresh:gbfs": "python3 build_gbfs_snapshot.py",
-    "test": "node tests/acceptance.mjs && node tests/durable_acceptance.mjs && python3 -m unittest tests/test_build_gbfs_snapshot.py tests/test_server.py"
+    "test": "node tests/acceptance.mjs && node tests/durable_acceptance.mjs && python3 -m unittest tests/test_build_gbfs_snapshot.py tests/test_build_policy_boundary_analysis.py tests/test_server.py"
   },
   "devDependencies": {
     "playwright": "1.61.1"
