@@ -872,3 +872,53 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .dialog-actions button { min-height: 46px; flex: 1; }
   .site-footer { align-items: flex-start; flex-direction: column; gap: 8px; padding-inline: 16px; }
 }
+
+.vendor-response-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.vendor-response-panel p { margin-bottom: 4px; }
+.vendor-response-list { display: grid; gap: 8px; }
+
+.vendor-response-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.vendor-response-row > div:first-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vendor-response-row small {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+
+.vendor-response-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .vendor-response-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .vendor-response-actions > button {
+    flex: 1;
+  }
+}
