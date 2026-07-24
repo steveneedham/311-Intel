@@ -383,7 +383,10 @@
           <p class="eyebrow">Operational response</p>
           <h2 id="interventions-title">Interventions requiring review</h2>
         </div>
-        <p class="section-note">Recommendations must be approved before dispatch.</p>
+        <div class="section-actions">
+          <p class="section-note">Immediate responses, long-term policy changes, and experiments all require approval before dispatch.</p>
+          <button class="primary-button" id="openIntervention" type="button">Create intervention</button>
+        </div>
       </div>
       <div class="card-list" id="interventionList"></div>
     </section>
@@ -614,6 +617,61 @@
     </form>
   </dialog>
 
+  <dialog class="intake-dialog" id="interventionDialog" aria-labelledby="intervention-dialog-title">
+    <form class="intake-form" id="interventionForm">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Operational response</p>
+          <h2 id="intervention-dialog-title">Create intervention</h2>
+        </div>
+        <button class="icon-button" id="closeIntervention" type="button" aria-label="Close intervention form">×</button>
+      </div>
+      <p class="form-note">Create an immediate response, a longer-term policy or infrastructure change, or a time-bounded experiment.</p>
+      <div class="form-grid">
+        <label>Intervention type <span>Required</span>
+          <select id="interventionTypeInput" required>
+            <option value="field_response">Immediate operational response</option>
+            <option value="policy">Long-term policy or infrastructure</option>
+            <option value="experiment">Time-bounded experiment</option>
+          </select>
+        </label>
+        <label>Service area <span>Required</span>
+          <input id="interventionZoneInput" required placeholder="Harrison West or a defined boundary">
+        </label>
+        <label class="full-field">Strategy <span>Required</span>
+          <input id="interventionStrategyInput" required placeholder="Mandatory parking in this area">
+        </label>
+        <label class="full-field">Rationale <span>Required</span>
+          <textarea id="interventionRationaleInput" required placeholder="State the operational problem, evidence, and why this response is appropriate."></textarea>
+        </label>
+        <fieldset class="full-field vendor-targets">
+          <legend>Vendors required to respond</legend>
+          <label><input id="interventionSpinInput" type="checkbox" checked> Spin</label>
+          <label><input id="interventionVeoInput" type="checkbox" checked> Veo</label>
+        </fieldset>
+      </div>
+      <div class="form-grid experiment-fields" id="interventionExperimentFields" hidden>
+        <label class="full-field">Hypothesis <span>Required for experiments</span>
+          <textarea id="interventionHypothesisInput" placeholder="If mandatory parking is introduced here, sidewalk-blocking requests will decline."></textarea>
+        </label>
+        <label class="full-field">Success measure <span>Required for experiments</span>
+          <input id="interventionSuccessMeasureInput" placeholder="At least 25% fewer independent 311 requests">
+        </label>
+        <label>Start date <span>Required</span>
+          <input id="interventionStartInput" type="date">
+        </label>
+        <label>End date <span>Required</span>
+          <input id="interventionEndInput" type="date">
+        </label>
+      </div>
+      <p class="form-error" id="interventionError" role="alert"></p>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancelIntervention" type="button">Cancel</button>
+        <button class="primary-button" type="submit">Create for review</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog class="intake-dialog auth-dialog" id="authDialog" aria-labelledby="auth-title">
     <form class="intake-form" id="authForm">
       <div class="dialog-heading">
@@ -654,6 +712,6 @@
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=20260724-vendor-response"></script>
+  <script src="app.js?v=20260724-intervention-types"></script>
 </body>
 </html>
