@@ -29,21 +29,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 - Nine dated GBFS observations now provide a preliminary Goodale/Olentangy
   baseline. Counts are usually one or two vehicles; the latest observation
   contains six (five Spin and one Veo), three times the historical median of
-  two. The latest snapshot, at 12:46 a.m. EDT on July 23, joins to the official
-  July 22 Crew–NYCFC 7:30 p.m. kickoff and falls three hours after the
-  analytically estimated match end, inside the defined 2–6 hour recovery
-  window. This proves a dated event association and relative concentration,
-  not recurrence or causation.
-- The event dataset contains nine remaining 2026 Crew home dates from the
-  official single-match schedule; eight have official kickoff times and one is
-  time-TBD. Expected end times are transparently estimated at 2h15 after
-  kickoff. The inspectable join windows are four hours pre-event, during the
-  event, 0–2 hours immediate post-event, 2–6 hours recovery, and 6–16 hours
-  next morning.
-- Browser tests confirmed one of nine Goodale/Olentangy observations is
-  event-window linked. Its watch count is six, compared with a non-event median
-  of two. The UI explicitly says one linked observation is insufficient to
-  establish recurrence or causation and links to the official schedule source.
+  two. This proves a relative concentration signal, not event causation.
 - The verified 311 snapshot contains three N 4th Street complaints:
   `CAS-3085935-H5M2M1`, `CAS-3080008-R7Z5H2`, and `CAS-3070558-P1C4L9`.
   One is open. The app labels this an infrastructure-change watch tied to the
@@ -108,23 +94,6 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   states, rerendering did not duplicate them, and a duplicate rule was
   rejected. Both desktop and mobile runs completed without console errors or
   document overflow.
-- A deterministic hotspot-to-intervention workflow now generates a
-  recommendation only for High or Critical hotspot tiers. Each recommendation
-  preserves the score, tier, all source request IDs, duplicate-suppressed
-  signal IDs, assigned response team, rationale, creator role, and creation
-  timestamp. An unresolved recommendation prevents another recommendation for
-  the same zone.
-- The intervention lifecycle records recommended, approved, dispatched,
-  completed, and skipped states with actor and timestamps. Completion requires
-  a field note. Completing work creates an inconclusive outcome path with
-  explicit seven-day baseline and post-period ISO timestamps, baseline source
-  IDs, and the completion evidence; skipping does not create an outcome.
-- An isolated acceptance fixture (`CAS-ACCEPTANCE-HOTSPOT`) proved the complete
-  local flow and was discarded with its browser profile afterward. Operator
-  generated `INT-003` but could not approve it; Administrator approved,
-  dispatched, and completed it. Completion without a note was rejected.
-  `OUT-002` was then created with explicit windows and evidence. A second
-  recommendation, `INT-004`, proved the skipped path and created no outcome.
 
 ## Acceptance-test audit
 
@@ -134,9 +103,9 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | 2 | Classification and operator attribution include inspectable evidence. | Partial | Imported source description, complaint type, operator, and coordinates are visible. Two user-reviewed official request photographs support explicit local overrides: `CAS-3080008-R7Z5H2` is Veo (teal vehicle) and `CAS-3079843-Q2Y0Q4` is Spin (orange vehicles). Detail and map popups show attribution confidence, evidence, and the official request link. Automated image attribution and confidence review remain unimplemented. |
 | 3 | An authorized user can assign a request, change status, and see an audit history. | Partial | Trial roles now restrict request writes to Operator/Administrator and intervention transitions to Administrator. Intake, imports, request changes, and intervention transitions append to a visible activity ledger. Controls and history remain browser-local rather than authenticated/server-immutable. |
 | 4 | The complaint appears at the correct map location and in the correct zone. | Proven for available coordinates | The joined operational street map plots every selected 311 record at its stored latitude/longitude with source ID, address, zone, status, and priority. It overlays 3,578 GBFS positions, cross-vendor flags, and named watches on OpenStreetMap tiles. Source-zone correctness still depends on the upstream record. |
-| 5 | A qualifying cluster produces an explainable hotspot and recommendation. | Proven locally | A temporary Critical ADA fixture generated a score-9 High hotspot. Operator created an intervention preserving its score, one source record, one independent signal, deterministic response team, rationale, and initial transition. Viewer controls were disabled, and duplicate active-zone recommendations are prevented. The fixture was discarded after testing. Cross-vendor GBFS flags remain human-review signals rather than automatic violations. Event-window context is added only when a source request is within 1,500 m of the verified venue and inside a documented schedule window. |
+| 5 | A qualifying cluster produces an explainable hotspot and recommendation. | Partial | Hotspots are calculated from unresolved records using visible priority, recency, and accessibility factors. Cross-vendor GBFS pile-ups are flagged at a documented four-vehicle/~20 m review threshold. Flags are not automatically treated as violations or interventions. |
 | 6 | A recommendation cannot be dispatched before approval. | Proven locally | Browser test confirmed a recommended intervention exposes only Approve; Dispatch appears only after approval. |
-| 7 | Completing an intervention creates an outcome path with explicit dates. | Proven locally | Isolated Chromium testing completed recommended → approved → dispatched → completed, required a completion note, and created an inconclusive outcome with four ISO boundary timestamps, readable seven-day windows, baseline source IDs, and completion evidence. A separate skipped recommendation created no outcome. |
+| 7 | Completing an intervention creates an outcome path with explicit dates. | Partial | Completion creates an inconclusive outcome record and names baseline/post windows. The full dispatch-to-completion flow needs another clean browser test against the real snapshot mode. |
 | 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for snapshot | The interface shows `Base44 snapshot · 104`, 8 open, 96 resolved, and recalculates counts after local intake and status changes. |
 | 9 | A non-admin cannot perform admin-only writes. | Partial | The local role gate prevents Viewer request writes and prevents Viewer/Operator intervention transitions. Production proof still requires authenticated identities and backend authorization that cannot be bypassed in the browser. |
 | 10 | Existing records remain present after the change. | Proven for build process | Base44 was accessed read-only; all 104 exported records remained available. Live write integration has not begun. |
@@ -157,12 +126,13 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 1. Select and authorize a deployment route.
 2. Add authentication, admin/user authorization, and immutable action history.
 3. Implement and verify transparent complaint and operator attribution.
-4. Collect enough additional matched event and non-event GBFS snapshots to
-   test recurrence; the current schedule join has only one event-linked
-   observation and cannot establish causation.
-5. Connect controlled writes to a durable backend without risking existing
+4. Generate intervention recommendations from documented hotspot thresholds.
+5. Join venue schedules to GBFS snapshot times and validate event-linked
+   concentration against non-event days.
+6. Connect controlled writes to a durable backend without risking existing
    Base44 records.
-6. Run the complete acceptance suite against the deployed application.
+7. Verify all intervention/outcome transitions.
+8. Run the complete acceptance suite against the deployed application.
 
 ## Base44 credit decision
 
