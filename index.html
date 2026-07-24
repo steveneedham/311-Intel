@@ -205,6 +205,7 @@
         <label class="check-control"><input id="mapVehiclesToggle" type="checkbox" checked> GBFS vehicles</label>
         <label class="check-control"><input id="mapFlagsToggle" type="checkbox" checked> Cross-vendor flags</label>
         <label class="check-control"><input id="mapWatchesToggle" type="checkbox" checked> Named watches</label>
+        <label class="check-control"><input id="mapPoliciesToggle" type="checkbox" checked> Policy boundaries</label>
         <span class="result-count" id="mapResultCount"></span>
       </form>
       <div class="map-search-summary" id="mapSearchSummary" aria-live="polite"></div>
@@ -221,6 +222,7 @@
         <span><i class="key-spin"></i>Spin</span>
         <span><i class="key-flag"></i>Cross-vendor flag</span>
         <span><i class="key-watch"></i>Named watch</span>
+        <span><i class="key-policy"></i>No-park / no-ride boundary</span>
       </div>
     </section>
 
@@ -284,6 +286,9 @@
         </div>
         <p class="section-note">Calculated from the trial issue records—not hard-coded totals.</p>
       </div>
+      <article class="policy-boundary-analysis" id="policyBoundaryAnalysis">
+        <p>Loading published mobility-policy boundaries.</p>
+      </article>
       <div class="hotspot-layout">
         <div class="map-panel" aria-label="Schematic Columbus zone map">
           <div class="map-key"><span></span> Relative issue concentration</div>

@@ -82,6 +82,7 @@ let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
 let workflowState = { enabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
+let policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "loading" };
 const vehicleWatchLocations = [
   {
     id: "WATCH-GOODALE-OLENTANGY",
@@ -689,6 +690,25 @@ async function hydrateEvents() {
   } catch (error) {
     console.warn("External event context unavailable.", error);
     eventState = { events: [], venue: null, source: null, status: "unavailable" };
+  }
+}
+
+async function hydratePolicyBoundaries() {
+  try {
+    const response = await fetch("mobility-policy-boundaries.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`policy boundary request failed with ${response.status}`);
+    const payload = await response.json();
+    policyBoundaryState = {
+      boundaries: Array.isArray(payload.boundaries) ? payload.boundaries : [],
+      complaints: Array.isArray(payload.complaints) ? payload.complaints : [],
+      summary: payload.summary || null,
+      source: payload.source || null,
+      method: payload.method || null,
+      status: "ready"
+    };
+  } catch (error) {
+    console.warn("Published mobility-policy boundaries unavailable.", error);
+    policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "unavailable" };
   }
 }
 
@@ -1380,6 +1400,33 @@ function generateHotspotRecommendation(zone) {
 
 function renderHotspots() {
   const data = hotspots();
+  const policyPanel = document.getElementById("policyBoundaryAnalysis");
+  if (policyPanel) {
+    if (policyBoundaryState.status === "ready" && policyBoundaryState.summary) {
+      const summary = policyBoundaryState.summary;
+      const closest = policyBoundaryState.complaints
+        .filter(item => item.nearest_boundary_distance_m <= 25)
+        .slice(0, 6);
+      policyPanel.innerHTML = `
+        <div class="brief-heading">
+          <div>
+            <p class="eyebrow">Published MDS policy context</p>
+            <h3>311 proximity to no-park and no-ride boundaries</h3>
+          </div>
+          <a href="${escapeHtml(policyBoundaryState.source?.policy_url || "#")}" target="_blank" rel="noreferrer">Open public policy map</a>
+        </div>
+        <div class="policy-metrics">
+          <p><strong>${summary.within_boundary_m["25"]}</strong><span>of ${summary.source_complaint_count} within 25 m</span></p>
+          <p><strong>${summary.within_boundary_m["50"]}</strong><span>within 50 m</span></p>
+          <p><strong>${summary.within_boundary_m["100"]}</strong><span>within 100 m</span></p>
+          <p><strong>${summary.inside_policy_zone_count}</strong><span>inside a published zone</span></p>
+        </div>
+        <p>${summary.boundary_policy_count} published no-parking, mandatory-parking, or no-ride policies contribute ${summary.boundary_feature_count} mapped features. The closest records include ${closest.map(item => `${escapeHtml(item.source_id)} · ${escapeHtml(item.nearest_policy_name)} · ${item.nearest_boundary_distance_m.toFixed(1)} m`).join("; ")}.</p>
+        <p class="threshold-note"><strong>Interpretation boundary:</strong> proximity is a review signal, not evidence that a geofence caused the complaint or was active at report time. A matched control set of ordinary street locations is still required before claiming complaints are disproportionately concentrated near policy edges.</p>`;
+    } else {
+      policyPanel.innerHTML = `<p class="threshold-note">Published mobility-policy boundaries are unavailable in this build.</p>`;
+    }
+  }
   const reportingWatch = reportingPatternWatch();
   const reportingWatchCard = reportingWatch.issues.length ? `
     <article class="hotspot-item named-watch reporting-watch">
@@ -1779,7 +1826,30 @@ function renderOperationalMap() {
   const showVehicles = document.getElementById("mapVehiclesToggle").checked;
   const showFlags = document.getElementById("mapFlagsToggle").checked;
   const showWatches = document.getElementById("mapWatchesToggle").checked;
+  const showPolicies = document.getElementById("mapPoliciesToggle").checked;
   const bounds = [];
+  if (showPolicies && policyBoundaryState.status === "ready") {
+    policyBoundaryState.boundaries.forEach(boundary => {
+      const color = boundary.boundary_type === "no_ride" ? "#7a4b76"
+        : boundary.boundary_type === "mandatory_parking" ? "#355f79"
+          : "#956b1d";
+      L.geoJSON(
+        { type: "Feature", properties: {}, geometry: boundary.geometry },
+        {
+          style: {
+            color,
+            weight: 1.4,
+            opacity: 0.72,
+            fillColor: color,
+            fillOpacity: 0.05,
+            dashArray: boundary.boundary_type === "no_ride" ? "5 4" : null
+          }
+        }
+      ).bindPopup(
+        `<strong>${escapeHtml(boundary.policy_name)}</strong><br>${escapeHtml(label(boundary.boundary_type))}<br>${escapeHtml(boundary.description)}<br>Published policy context; not proof of a violation.`
+      ).addTo(operationalMapLayers);
+    });
+  }
   complaints.forEach(issue => {
     const point = [issue.lat, issue.lng];
     bounds.push(point);
@@ -1838,7 +1908,7 @@ function renderOperationalMap() {
     });
   }
   document.getElementById("mapResultCount").textContent =
-    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}`;
+    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}${showPolicies && policyBoundaryState.status === "ready" ? ` · ${policyBoundaryState.summary.boundary_feature_count} policy features` : ""}`;
   if (!operationalMapHasFit && bounds.length) {
     operationalMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
     operationalMapHasFit = true;
@@ -2349,7 +2419,8 @@ Promise.all([
   hydrateVehiclePositions(),
   hydrateSlaEvidence(),
   hydrateHistorical311(),
-  hydrateEvents()
+  hydrateEvents(),
+  hydratePolicyBoundaries()
 ]).then(initializeDurableMode).finally(() => {
   renderDurableMode();
   renderAll();
