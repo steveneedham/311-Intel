@@ -481,6 +481,17 @@ def validate_issue_records(issues):
             raise ValueError(f"request {issue_id} has invalid status")
         if issue.get("priority") not in allowed_priorities:
             raise ValueError(f"request {issue_id} has invalid priority")
+        photo_urls = issue.get("crossReferencePhotoUrls", [])
+        if not isinstance(photo_urls, list) or len(photo_urls) > 6:
+            raise ValueError(
+                f"request {issue_id} crossReferencePhotoUrls must contain at most six URLs"
+            )
+        for photo_url in photo_urls:
+            parsed = urlparse(str(photo_url))
+            if parsed.scheme != "https" or not parsed.netloc:
+                raise ValueError(
+                    f"request {issue_id} contains an invalid public photograph URL"
+                )
     if len(ids) != len(set(ids)):
         raise ValueError("request ids must be unique")
 
