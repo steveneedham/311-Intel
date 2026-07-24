@@ -74,6 +74,16 @@ try {
   check(await page.locator("#issueRows tr").count() === 8, "open queue shows eight unresolved current records");
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
+  check(await page.locator('link[rel="manifest"][href="manifest.webmanifest"]').count() === 1, "PWA manifest is linked");
+  check(await page.evaluate(async () => {
+    const manifest = await fetch("manifest.webmanifest").then(response => response.json());
+    return manifest.display === "standalone" && manifest.icons.some(icon => icon.sizes === "192x192") && manifest.icons.some(icon => icon.sizes === "512x512");
+  }), "PWA manifest declares standalone display and install icons");
+  await page.setViewportSize({ width: 390, height: 844 });
+  check(await page.locator(".masthead").evaluate(element => element.scrollWidth <= element.clientWidth), "mobile masthead does not overflow");
+  check(await page.locator("#issueRows tr").first().evaluate(element => getComputedStyle(element).display === "grid"), "mobile requests render as touch-friendly cards");
+  check(await page.locator(".nav-item").first().evaluate(element => element.getBoundingClientRect().height >= 44), "mobile navigation meets touch target sizing");
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator('#issueRows tr[data-id="CAS-3085657-R4J3G9"]').click();
   const sourceOnlyDetail = await page.locator("#detailPanel").innerText();
   check(sourceOnlyDetail.includes("Source Label") && sourceOnlyDetail.includes("no complaint narrative"), "source-only classification boundary is visible");
