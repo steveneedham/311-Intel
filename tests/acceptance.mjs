@@ -306,6 +306,7 @@ try {
   check(Boolean(interventionId), "hotspot creates an intervention recommendation");
 
   await page.locator('[data-view="interventions"]').click();
+  check((await page.locator("#interventions").innerText()).includes("These are not 311 requests") && (await page.locator("#interventions").innerText()).includes("no SLA") && (await page.locator("#interventions").innerText()).includes("above current vendor requirements"), "proactive dispatch is separated from required 311 handling and SLA compliance");
   check(await page.locator(`[data-action="approve"][data-id="${interventionId}"]`).isDisabled(), "Operator cannot approve intervention");
   check(await page.locator(`[data-action="dispatch"][data-id="${interventionId}"]`).count() === 0, "dispatch is unavailable before approval");
   await page.locator("#roleSelect").selectOption("admin");
@@ -320,6 +321,25 @@ try {
   await page.locator(`[data-vendor-response="acknowledged"][data-vendor="Spin"][data-id="${interventionId}"]`).click();
   await page.locator(`[data-vendor-response="accepted"][data-vendor="Veo"][data-id="${interventionId}"]`).click();
   await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
+  check((await page.locator("#dataNotice").innerText()).includes("Vendor routing record required from Spin and Veo"), "completion waits for every vendor routing record");
+
+  const spinRouting = page.locator(`form[data-vendor-routing][data-vendor="Spin"][data-id="${interventionId}"]`);
+  await spinRouting.locator('input[name="assignedTo"]').fill("Spin Columbus on-duty operations");
+  await spinRouting.locator('select[name="vendorPriority"]').selectOption("high");
+  await spinRouting.locator('select[name="routingMethod"]').selectOption("slack");
+  await spinRouting.locator('input[name="routingReference"]').fill("#columbus-ops · message 123");
+  await spinRouting.locator('textarea[name="evidenceNote"]').fill("On-duty team assigned to inspect and rebalance the forecast area.");
+  await spinRouting.locator('button[type="submit"]').click();
+
+  const veoRouting = page.locator(`form[data-vendor-routing][data-vendor="Veo"][data-id="${interventionId}"]`);
+  await veoRouting.locator('input[name="assignedTo"]').fill("Veo Columbus on-duty operations");
+  await veoRouting.locator('select[name="vendorPriority"]').selectOption("immediate");
+  await veoRouting.locator('select[name="routingMethod"]').selectOption("vendor_app");
+  await veoRouting.locator('input[name="routingReference"]').fill("VEO-OPS-875");
+  await veoRouting.locator('textarea[name="evidenceNote"]').fill("Vendor operations case opened for proactive field verification.");
+  await veoRouting.locator('button[type="submit"]').click();
+
+  await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
   const lifecycle = await page.evaluate(id => {
     const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
     return {
@@ -327,11 +347,23 @@ try {
       outcome: state.outcomes.find(item => item.interventionId === id)
     };
   }, interventionId);
-  check(lifecycle.intervention.status === "completed", "intervention reaches completed state");
+  check(lifecycle.intervention.status === "completed", "proactive dispatch reaches completed state");
+  check(
+    lifecycle.intervention.requirementStatus === "above_current_311_requirements" &&
+    lifecycle.intervention.authorityBasis === "voluntary_pilot" &&
+    lifecycle.intervention.intendedEffect === "fewer_future_311_requests" &&
+    lifecycle.intervention.slaStatus === "not_applicable",
+    "forecast remains an above-requirement no-SLA pilot with an explicit prevention goal"
+  );
   check(
     lifecycle.intervention.vendorResponses.Spin.status === "acknowledged" &&
-    lifecycle.intervention.vendorResponses.Veo.status === "accepted",
-    "each dispatched vendor response is preserved"
+    lifecycle.intervention.vendorResponses.Spin.assignedTo.includes("on-duty") &&
+    lifecycle.intervention.vendorResponses.Spin.routingMethod === "slack" &&
+    lifecycle.intervention.vendorResponses.Spin.evidenceNote.includes("forecast area") &&
+    lifecycle.intervention.vendorResponses.Veo.status === "accepted" &&
+    lifecycle.intervention.vendorResponses.Veo.vendorPriority === "immediate" &&
+    lifecycle.intervention.vendorResponses.Veo.routingMethod === "vendor_app",
+    "each vendor receipt, assignment, priority, internal route, and evidence are preserved"
   );
   check(lifecycle.intervention.transitions.map(item => item.status).join(",") === "recommended,approved,dispatched,completed", "all lifecycle transitions are recorded");
   check(Boolean(lifecycle.outcome?.baselineStart && lifecycle.outcome?.postEnd), "completion creates explicit outcome windows");
