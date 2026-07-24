@@ -102,6 +102,14 @@ Only spend Base44 agent credits on a small, reversible trial after the exact
 change and verification path are known. Do not regenerate the full application
 or manufacture records for empty entities merely to populate the interface.
 
+The scheduled `11-columbus-daily-forecast` agent can use
+`base44-forecast-input.json` instead of processing the full GBFS payload.
+`build_base44_forecast_input.py` deterministically summarizes the same vehicle
+snapshot used by this application, including cross-vendor stacking flags,
+complaint pressure, named-watch observations, and upcoming event context. See
+`BASE44_FORECAST_HANDOFF.md` for the fail-closed 6:00 AM agent instruction and
+the recommended 5:45 AM refresh order.
+
 ## Site measurement
 
 The GA4 browser tag collects aggregate usage for property `G-V40E4MZEMV`, but

@@ -15,7 +15,8 @@ const APP_SHELL = [
   "./external-events.json",
   "./mobility-policy-boundaries.json",
   "./site-metrics.json",
-  "./base44-artifacts.json"
+  "./base44-artifacts.json",
+  "./base44-forecast-input.json"
 ];
 
 self.addEventListener("install", event => {
