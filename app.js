@@ -83,6 +83,19 @@ let operationalMapSearchLayer = null;
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
+let forecastState = {
+  schema_version: 1,
+  status: "loading",
+  forecast: null,
+  history: [],
+  event_comparisons: []
+};
+let vehicleTraceState = { status: "loading", traces: [], method: null };
+let populusState = {
+  status: "loading",
+  idle_review_threshold_minutes: 120,
+  observations: []
+};
 let workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
 let policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "loading" };
 let siteMetricsState = {
@@ -493,6 +506,7 @@ function normalizeImportedIssue(record) {
     operatorEvidence: operatorEvidence.evidence,
     sourceUrl: requestEvidence?.sourceUrl || operatorEvidence.sourceUrl || "",
     crossReferenceUrl: requestEvidence?.sourceUrl || operatorEvidence.sourceUrl || "",
+    crossReferencePhotoUrls: Array.isArray(record.crossReferencePhotoUrls) ? record.crossReferencePhotoUrls : [],
     crossReferenceSummary: requestEvidence?.description || "",
     crossReferenceStatus: requestEvidence?.officialStatus || "",
     crossReferenceEvidence: requestEvidence?.evidence || "",
@@ -773,6 +787,61 @@ async function hydrateEvents() {
   } catch (error) {
     console.warn("External event context unavailable.", error);
     eventState = { events: [], venue: null, source: null, status: "unavailable" };
+  }
+}
+
+async function hydrateDailyForecast() {
+  try {
+    const response = await fetch("daily-forecast.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Forecast request failed with ${response.status}`);
+    const data = await response.json();
+    if (data?.schema_version !== 1 || !Array.isArray(data.history) || !Array.isArray(data.event_comparisons)) {
+      throw new Error("Forecast output does not match schema version 1.");
+    }
+    forecastState = data;
+  } catch (error) {
+    console.warn("Daily forecast output unavailable.", error);
+    forecastState = {
+      schema_version: 1,
+      status: "unavailable",
+      forecast: null,
+      history: [],
+      event_comparisons: []
+    };
+  }
+}
+
+async function hydrateRequestVehicleTraces() {
+  try {
+    const response = await fetch("request-vehicle-traces.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Vehicle trace request failed with ${response.status}`);
+    const data = await response.json();
+    if (data?.schema_version !== 1 || !Array.isArray(data.traces)) {
+      throw new Error("Vehicle trace output does not match schema version 1.");
+    }
+    vehicleTraceState = data;
+  } catch (error) {
+    console.warn("Request vehicle traces unavailable.", error);
+    vehicleTraceState = { status: "unavailable", traces: [], method: null };
+  }
+}
+
+async function hydratePopulusOperations() {
+  try {
+    const response = await fetch("populus-zone-operations.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Populus context request failed with ${response.status}`);
+    const data = await response.json();
+    if (data?.schema_version !== 1 || !Array.isArray(data.observations)) {
+      throw new Error("Populus context does not match schema version 1.");
+    }
+    populusState = data;
+  } catch (error) {
+    console.warn("Populus operational context unavailable.", error);
+    populusState = {
+      status: "unavailable",
+      idle_review_threshold_minutes: 120,
+      observations: []
+    };
   }
 }
 
@@ -1289,6 +1358,15 @@ function validOneViewRequestUrl(value) {
   }
 }
 
+function validEvidencePhotoUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function containsContactDetails(value) {
   return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/i.test(value);
 }
@@ -1301,6 +1379,158 @@ function crossReferenceEvidenceText(operator, confidence) {
     "photo-and-text-confirmed": "both the public narrative and request photographs"
   }[confidence] || "the reviewed public request";
   return `Administrator verified ${operator} using ${method}.`;
+}
+
+function renderLinkedPhotos(issue) {
+  const photoUrls = Array.isArray(issue.crossReferencePhotoUrls)
+    ? issue.crossReferencePhotoUrls.filter(validEvidencePhotoUrl)
+    : [];
+  if (!photoUrls.length) return "";
+  return `
+    <section class="linked-photo-panel" aria-label="Linked OneView request photographs">
+      <div class="linked-photo-heading">
+        <div>
+          <p class="eyebrow">Linked OneView evidence</p>
+          <strong>${photoUrls.length} request photograph${photoUrls.length === 1 ? "" : "s"}</strong>
+        </div>
+        ${issue.sourceUrl ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open request</a>` : ""}
+      </div>
+      <div class="linked-photo-strip" tabindex="0">
+        ${photoUrls.map((url, index) => `<a class="linked-photo" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+          <img src="${escapeHtml(url)}" alt="OneView request photograph ${index + 1} for ${escapeHtml(issue.id)}" loading="lazy" referrerpolicy="no-referrer">
+          <span>Photograph ${index + 1}</span>
+        </a>`).join("")}
+      </div>
+    </section>`;
+}
+
+function normalizedPlace(value) {
+  return String(value || "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+function populusContextForIssue(issue, trace) {
+  const observations = populusState.observations || [];
+  if (!observations.length) return null;
+  const issueTime = new Date(issue.reportedAt);
+  const operator = issue.operator !== "unknown" ? issue.operator : trace?.vehicle?.operator;
+  const candidates = observations.filter(item => {
+    const observedAt = new Date(item.observed_at);
+    return normalizedPlace(item.zone) === normalizedPlace(issue.zone)
+      && (!operator || normalizedPlace(item.operator) === normalizedPlace(operator))
+      && Number.isFinite(observedAt.getTime());
+  });
+  const current = candidates
+    .filter(item => Math.abs(new Date(item.observed_at) - issueTime) <= 6 * 3600000)
+    .toSorted((a, b) => Math.abs(new Date(a.observed_at) - issueTime) - Math.abs(new Date(b.observed_at) - issueTime))[0];
+  if (!current) return null;
+  const baseline = candidates.filter(item => {
+    const observedAt = new Date(item.observed_at);
+    const age = issueTime - observedAt;
+    const hourDistance = Math.min(
+      Math.abs(observedAt.getUTCHours() - issueTime.getUTCHours()),
+      24 - Math.abs(observedAt.getUTCHours() - issueTime.getUTCHours())
+    );
+    return age >= 86400000 && age <= 28 * 86400000 && hourDistance <= 2;
+  });
+  const value = (item, field, fallback = 0) => Number(item?.[field] ?? fallback);
+  const rides = item => Number(item?.rides ?? (value(item, "rides_started") + value(item, "rides_ended")));
+  const baselineMedian = getter => baseline.length ? median(baseline.map(getter).filter(Number.isFinite)) : null;
+  const baselineFleet = baselineMedian(item => value(item, "fleet_size"));
+  const baselineRides = baselineMedian(rides);
+  const baselineIdle = baselineMedian(item => value(item, "idle_vehicles"));
+  const currentFleet = value(current, "fleet_size");
+  const currentRides = rides(current);
+  const currentIdle = value(current, "idle_vehicles");
+  const fleetRatio = baselineFleet ? currentFleet / baselineFleet : null;
+  const rideRatio = baselineRides ? currentRides / baselineRides : null;
+  const idleRatio = baselineIdle ? currentIdle / baselineIdle : null;
+  const idleMinutes = value(current, "median_idle_minutes", NaN);
+  const threshold = Number(populusState.idle_review_threshold_minutes || 120);
+  const netDeployments = value(current, "deployments") - value(current, "removals");
+  let pattern = "insufficient_evidence";
+  if (Number.isFinite(idleMinutes) && idleMinutes >= threshold && currentIdle > 0 && (rideRatio === null || rideRatio <= 1.1)) {
+    pattern = "idle_management_gap";
+  } else if (fleetRatio !== null && fleetRatio >= 1.25 && (rideRatio === null || fleetRatio - rideRatio >= 0.25) && netDeployments > 0) {
+    pattern = "supply_driven_concentration";
+  } else if (rideRatio !== null && rideRatio >= 1.2 && fleetRatio !== null && Math.abs(fleetRatio - rideRatio) <= 0.35) {
+    pattern = "demand_driven_concentration";
+  }
+  return {
+    pattern,
+    operator: current.operator || operator || "All operators",
+    observedAt: current.observed_at,
+    currentFleet,
+    currentRides,
+    currentIdle,
+    idleMinutes: Number.isFinite(idleMinutes) ? idleMinutes : null,
+    deployments: value(current, "deployments"),
+    removals: value(current, "removals"),
+    baselineFleet,
+    baselineRides,
+    baselineIdle,
+    fleetRatio,
+    rideRatio,
+    idleRatio,
+    baselineCount: baseline.length
+  };
+}
+
+function renderRootCauseReview(issue) {
+  const trace = (vehicleTraceState.traces || []).find(item => item.request_id === issue.id);
+  const policy = (policyBoundaryState.complaints || []).find(item => item.source_id === issue.id);
+  const event = eventEvidenceForIssue(issue);
+  const repeatCount = [...(historicalState.records || []), ...state.issues]
+    .filter(item => normalizedPlace(item.address) === normalizedPlace(issue.address))
+    .length;
+  const populus = populusContextForIssue(issue, trace);
+  const signals = [];
+  if (trace?.vehicle) {
+    const dwell = Number.isFinite(trace.trajectory?.minimum_dwell_minutes)
+      ? `${trace.trajectory.minimum_dwell_minutes} minutes minimum observed dwell`
+      : "arrival time not bounded";
+    signals.push(`${trace.vehicle.operator} ${trace.vehicle.id} · ${trace.matched_observation.distance_meters} m from request · ${dwell}`);
+  }
+  if (repeatCount > 1) signals.push(`${repeatCount} loaded requests at the same normalized address`);
+  if (event) signals.push(`${event.eventName} · ${label(event.window)} · ${event.venueDistanceMeters} m from venue`);
+  if (policy) signals.push(`${policy.nearest_boundary_distance_m} m from ${policy.nearest_policy_name} ${label(policy.nearest_boundary_type)} boundary`);
+  if (populus) {
+    signals.push(`${populus.operator} · fleet ${populus.currentFleet} · rides ${populus.currentRides} · idle ${populus.currentIdle}${populus.idleMinutes === null ? "" : ` · median idle ${populus.idleMinutes} min`}`);
+  }
+  const conclusion = {
+    demand_driven_concentration: "Demand-driven concentration: Populus rides and fleet increased together relative to the matched baseline.",
+    supply_driven_concentration: "Supply-driven concentration for review: fleet and net deployments rose faster than rides. This does not establish intent.",
+    idle_management_gap: "Idle-management gap for review: idle duration exceeded the configured threshold while demand was not unusually high. A duty or SLA breach is not established here.",
+    recent_vehicle_arrival: "A likely matched vehicle arrived from another observed location before the complaint. The data does not identify who moved or parked it.",
+    long_dwell: "A likely matched vehicle remained near the request long enough to support a dwell-management review.",
+    vehicle_cluster: "Multiple vehicle candidates were present, so the exact device and causal action remain unresolved.",
+    insufficient_evidence: "Insufficient evidence to distinguish rider parking, operator staging, displacement, or another cause."
+  }[populus?.pattern !== "insufficient_evidence" ? populus.pattern : (trace?.root_cause_signal || "insufficient_evidence")];
+  const confidence = populus && trace?.confidence === "high"
+    ? "high"
+    : populus || ["high", "medium"].includes(trace?.confidence)
+      ? "medium"
+      : "insufficient";
+  return `
+    <section class="root-cause-review" aria-label="Root cause review">
+      <div class="root-cause-heading">
+        <div>
+          <p class="eyebrow">Root-cause review</p>
+          <h4>${escapeHtml(label(populus?.pattern !== "insufficient_evidence" ? populus.pattern : (trace?.root_cause_signal || "insufficient_evidence")))}</h4>
+        </div>
+        <span class="badge badge-${confidence === "high" ? "completed" : confidence === "medium" ? "high" : "standard"}">${escapeHtml(confidence)} confidence</span>
+      </div>
+      <p class="root-cause-conclusion">${escapeHtml(conclusion)}</p>
+      ${signals.length ? `<ul>${signals.map(signal => `<li>${escapeHtml(signal)}</li>`).join("")}</ul>` : `<p>No linked vehicle trajectory or Populus zone observation is available yet.</p>`}
+      ${trace?.vehicle ? `<dl class="vehicle-trace">
+        <div><dt>Likely vehicle</dt><dd>${escapeHtml(trace.vehicle.operator)} · ${escapeHtml(trace.vehicle.id)} · ${escapeHtml(trace.vehicle.type)}</dd></div>
+        <div><dt>Matched observation</dt><dd>${new Date(trace.matched_observation.observed_at).toLocaleString()} · ${trace.matched_observation.distance_meters} m away</dd></div>
+        <div><dt>First observed near</dt><dd>${new Date(trace.trajectory.first_observed_near_at).toLocaleString()}</dd></div>
+        <div><dt>Arrived from</dt><dd>${trace.trajectory.came_from ? `${trace.trajectory.came_from.lat.toFixed(5)}, ${trace.trajectory.came_from.lng.toFixed(5)} · observed ${new Date(trace.trajectory.came_from.observed_at).toLocaleString()}` : "No defensible prior location in the loaded snapshot sequence"}</dd></div>
+        <div><dt>Observed dwell</dt><dd>${Number.isFinite(trace.trajectory.minimum_dwell_minutes) ? `At least ${trace.trajectory.minimum_dwell_minutes} minutes before the report` : "Not bounded by the loaded snapshots"}</dd></div>
+        <div><dt>Other candidates</dt><dd>${trace.candidate_count > 1 ? `${trace.candidate_count - 1} additional vehicle candidate${trace.candidate_count - 1 === 1 ? "" : "s"}` : "None within the matching window"}</dd></div>
+      </dl>` : ""}
+      <p class="evidence-boundary">GBFS and Populus support operational pattern review. They do not, by themselves, prove who placed a vehicle, operator intent, negligence, or a contractual violation.</p>
+    </section>`;
 }
 
 function requestHistory(issue) {
@@ -1370,6 +1600,7 @@ function renderDetail() {
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
       ${issue.councilDistrict ? `<div><dt>Council district</dt><dd>${escapeHtml(issue.councilDistrict)}</dd></div>` : ""}
     </dl>
+    ${renderLinkedPhotos(issue)}
     <div class="operator-evidence">
       <strong>OneView lookup</strong>
       <p>Search the public system near <b>${escapeHtml(issue.address)}</b>, match request ID <b>${escapeHtml(issue.id)}</b>, then record only operational evidence—never resident names or contact details.</p>
@@ -1377,10 +1608,14 @@ function renderDetail() {
         ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open matched OneView request and photographs</a>`
         : `<a href="${lookupUrl}" target="_blank" rel="noreferrer">Search nearby requests in OneView</a>`}
     </div>
+    ${renderRootCauseReview(issue)}
     <form class="detail-form evidence-review-form" id="evidenceReviewForm">
       <p class="eyebrow">Administrator evidence review</p>
       <label>Matched OneView request URL
         <input id="crossReferenceUrlInput" type="url" value="${escapeHtml(issue.crossReferenceUrl || "")}" placeholder="https://columbusoh.oneviewcrm.cc/servicerequests/…" ${canEditEvidence ? "" : "disabled"}>
+      </label>
+      <label>Public request photograph URLs
+        <textarea id="crossReferencePhotoUrlsInput" maxlength="3000" placeholder="One HTTPS image URL per line" ${canEditEvidence ? "" : "disabled"}>${escapeHtml((issue.crossReferencePhotoUrls || []).join("\n"))}</textarea>
       </label>
       <label>Privacy-safe operational summary
         <textarea id="crossReferenceSummaryInput" maxlength="600" placeholder="Describe the obstruction and location. Omit resident names, email addresses, phone numbers, and correspondence details." ${canEditEvidence ? "" : "disabled"}>${escapeHtml(issue.crossReferenceSummary || "")}</textarea>
@@ -1446,6 +1681,10 @@ function renderDetail() {
     if (!requireRole("admin", "record verified source evidence")) return;
     const error = document.getElementById("evidenceReviewError");
     const url = document.getElementById("crossReferenceUrlInput").value.trim();
+    const photoUrls = document.getElementById("crossReferencePhotoUrlsInput").value
+      .split(/\r?\n/)
+      .map(value => value.trim())
+      .filter(Boolean);
     const summary = document.getElementById("crossReferenceSummaryInput").value.trim();
     const officialStatus = document.getElementById("crossReferenceStatusInput").value;
     const operator = document.getElementById("crossReferenceOperatorInput").value;
@@ -1453,6 +1692,10 @@ function renderDetail() {
     const accessibilityEvidence = document.getElementById("accessibilityEvidenceInput").value;
     if (!validOneViewRequestUrl(url)) {
       error.textContent = "Enter the exact public OneView request URL, not the nearby-search page.";
+      return;
+    }
+    if (photoUrls.length > 6 || photoUrls.some(value => !validEvidencePhotoUrl(value))) {
+      error.textContent = "Add no more than six public HTTPS photograph URLs, one per line.";
       return;
     }
     if (summary.length < 12) {
@@ -1472,6 +1715,7 @@ function renderDetail() {
     issue.crossReferenceSummary = summary;
     issue.crossReferenceUrl = url;
     issue.sourceUrl = url;
+    issue.crossReferencePhotoUrls = photoUrls;
     issue.crossReferenceStatus = officialStatus;
     issue.crossReferenceEvidence = "Administrator-verified public OneView detail; the saved summary excludes personal contact information.";
     issue.accessibilityEvidence = accessibilityEvidence;
@@ -1486,6 +1730,15 @@ function renderDetail() {
     saveState();
     renderAll();
     showNotice(`${issue.id} OneView evidence saved without changing its local lifecycle status.`, "success");
+  });
+  panel.querySelectorAll(".linked-photo img").forEach(image => {
+    image.addEventListener("error", () => {
+      const link = image.closest(".linked-photo");
+      if (!link) return;
+      image.remove();
+      link.classList.add("photo-load-failed");
+      link.querySelector("span").textContent = "Open photograph";
+    }, { once: true });
   });
   document.getElementById("accessibilityChallengeForm")?.addEventListener("submit", event => {
     event.preventDefault();
@@ -2406,6 +2659,145 @@ function reconcileAlertDeliveries() {
   return added;
 }
 
+function isoWeekParts(value) {
+  const source = new Date(value);
+  if (!Number.isFinite(source.getTime())) return null;
+  const date = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const isoYear = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+  return {
+    year: isoYear,
+    week: Math.ceil((((date - yearStart) / 86400000) + 1) / 7)
+  };
+}
+
+function sameIsoWeekComparison() {
+  const currentRecords = state.issues.map(issue => ({ id: issue.id, reportedAt: issue.reportedAt }));
+  const historicalRecords = (historicalState.records || []).map(record => ({ id: record.id, reportedAt: record.reportedAt }));
+  const records = [...new Map([...historicalRecords, ...currentRecords].map(record => [record.id, record])).values()]
+    .filter(record => isoWeekParts(record.reportedAt));
+  const currentAnchor = currentRecords
+    .map(record => new Date(record.reportedAt))
+    .filter(date => Number.isFinite(date.getTime()))
+    .toSorted((a, b) => b - a)[0];
+  const current = currentAnchor ? isoWeekParts(currentAnchor) : isoWeekParts(new Date());
+  if (!current) return null;
+  const prior = { year: current.year - 1, week: current.week };
+  const count = target => records.filter(record => {
+    const parts = isoWeekParts(record.reportedAt);
+    return parts?.year === target.year && parts.week === target.week;
+  }).length;
+  const currentCount = count(current);
+  const priorCount = count(prior);
+  return {
+    current,
+    prior,
+    currentCount,
+    priorCount,
+    delta: priorCount ? Math.round((currentCount - priorCount) / priorCount * 100) : null
+  };
+}
+
+function forecastAccuracy() {
+  const evaluated = (forecastState.history || []).filter(item =>
+    Number.isFinite(Number(item.predicted_complaints))
+      && Number.isFinite(Number(item.actual_complaints))
+  );
+  if (!evaluated.length) return null;
+  const errors = evaluated.map(item => Math.abs(Number(item.predicted_complaints) - Number(item.actual_complaints)));
+  const actualTotal = evaluated.reduce((sum, item) => sum + Number(item.actual_complaints), 0);
+  const withinTolerance = evaluated.filter(item => {
+    const tolerance = Number.isFinite(Number(item.tolerance))
+      ? Number(item.tolerance)
+      : Math.max(1, Math.ceil(Number(item.actual_complaints) * 0.25));
+    return Math.abs(Number(item.predicted_complaints) - Number(item.actual_complaints)) <= tolerance;
+  }).length;
+  const predictedHotspots = new Set(evaluated.flatMap(item => item.predicted_hotspots || []));
+  const actualHotspots = new Set(evaluated.flatMap(item => item.actual_hotspots || []));
+  const hotspotHits = [...predictedHotspots].filter(zone => actualHotspots.has(zone)).length;
+  return {
+    evaluated: evaluated.length,
+    mae: errors.reduce((sum, error) => sum + error, 0) / evaluated.length,
+    wape: actualTotal ? errors.reduce((sum, error) => sum + error, 0) / actualTotal * 100 : null,
+    withinTolerance: withinTolerance / evaluated.length * 100,
+    precision: predictedHotspots.size ? hotspotHits / predictedHotspots.size * 100 : null,
+    recall: actualHotspots.size ? hotspotHits / actualHotspots.size * 100 : null
+  };
+}
+
+function renderDailyForecast() {
+  const strip = document.getElementById("forecastStrip");
+  const status = document.getElementById("forecastStatus");
+  const measurement = document.getElementById("forecastMeasurement");
+  if (!strip || !status || !measurement) return;
+
+  const publishedAt = forecastState.published_at ? new Date(forecastState.published_at) : null;
+  const horizons = Array.isArray(forecastState.forecast?.horizons)
+    ? [...forecastState.forecast.horizons].toSorted((a, b) => Number(a.hours) - Number(b.hours))
+    : [];
+  status.textContent = horizons.length
+    ? `Published ${publishedAt && Number.isFinite(publishedAt.getTime()) ? publishedAt.toLocaleString() : "without a valid timestamp"}`
+    : forecastState.status === "unavailable"
+      ? "Forecast output is unavailable."
+      : "Waiting for the first published 6:00 AM forecast.";
+
+  const horizonHours = [24, 48, 72];
+  strip.innerHTML = horizonHours.map(hours => {
+    const horizon = horizons.find(item => Number(item.hours) === hours);
+    if (!horizon) {
+      return `<article class="forecast-card forecast-card-pending">
+        <span class="badge badge-standard">${hours} hours</span>
+        <p class="forecast-value">—</p>
+        <h4>Awaiting forecast</h4>
+        <p>No prediction has been published for this horizon.</p>
+      </article>`;
+    }
+    const zones = Array.isArray(horizon.zones) ? horizon.zones : [];
+    const events = Array.isArray(horizon.events) ? horizon.events : [];
+    return `<article class="forecast-card">
+      <div class="forecast-card-topline">
+        <span class="badge badge-standard">${hours} hours</span>
+        <span class="forecast-confidence">${escapeHtml(label(horizon.confidence || "not stated"))} confidence</span>
+      </div>
+      <p class="forecast-value">${Number.isFinite(Number(horizon.predicted_complaints)) ? Number(horizon.predicted_complaints).toLocaleString() : "—"}</p>
+      <h4>Predicted 311 requests</h4>
+      <p>${zones.length
+        ? `<strong>Top zones:</strong> ${zones.slice(0, 3).map(item => `${escapeHtml(item.zone)}${Number.isFinite(Number(item.predicted_complaints)) ? ` (${Number(item.predicted_complaints)})` : ""}`).join(" · ")}`
+        : "No zone forecast was supplied."}</p>
+      ${events.length ? `<p><strong>Event context:</strong> ${events.map(item => escapeHtml(item.name || item)).join(" · ")}</p>` : ""}
+      <p class="forecast-boundary">${escapeHtml(horizon.uncertainty || "Forecast signal only; compare with actual requests after the horizon closes.")}</p>
+    </article>`;
+  }).join("");
+
+  const iso = sameIsoWeekComparison();
+  const accuracy = forecastAccuracy();
+  const eventComparisons = forecastState.event_comparisons || [];
+  const latestEvent = eventComparisons.at(-1);
+  measurement.innerHTML = `
+    <section>
+      <p class="eyebrow">Prediction accuracy</p>
+      ${accuracy ? `
+        <div class="forecast-score-row">
+          <span><strong>${accuracy.mae.toFixed(1)}</strong> MAE</span>
+          <span><strong>${accuracy.wape === null ? "—" : `${accuracy.wape.toFixed(0)}%`}</strong> WAPE</span>
+          <span><strong>${accuracy.withinTolerance.toFixed(0)}%</strong> within tolerance</span>
+          <span><strong>${accuracy.precision === null ? "—" : `${accuracy.precision.toFixed(0)}%`}</strong> hotspot precision</span>
+          <span><strong>${accuracy.recall === null ? "—" : `${accuracy.recall.toFixed(0)}%`}</strong> hotspot recall</span>
+        </div>
+        <p>${accuracy.evaluated} closed forecast horizon${accuracy.evaluated === 1 ? "" : "s"} evaluated against actual requests.</p>`
+        : `<p>Accuracy will appear after the first forecast horizon closes and actual 311 requests are linked.</p>`}
+    </section>
+    <section>
+      <p class="eyebrow">Year-over-year context</p>
+      ${iso ? `<p><strong>ISO week ${String(iso.current.week).padStart(2, "0")}:</strong> ${iso.current.year} has ${iso.currentCount} loaded request${iso.currentCount === 1 ? "" : "s"} vs. ${iso.priorCount} in ${iso.prior.year}${iso.delta === null ? " · prior-year denominator unavailable" : ` · ${iso.delta >= 0 ? "+" : ""}${iso.delta}%`}.</p>` : `<p>Same-ISO-week comparison is unavailable.</p>`}
+      ${latestEvent
+        ? `<p><strong>Event over event:</strong> ${escapeHtml(latestEvent.current_event)} vs. ${escapeHtml(latestEvent.prior_event)} · ${escapeHtml(latestEvent.metric)} ${Number(latestEvent.current_value).toLocaleString()} vs. ${Number(latestEvent.prior_value).toLocaleString()}${Number.isFinite(Number(latestEvent.delta_pct)) ? ` · ${Number(latestEvent.delta_pct) >= 0 ? "+" : ""}${Number(latestEvent.delta_pct).toFixed(0)}%` : ""}.</p>`
+        : `<p>Same-event year-over-year results will appear once matched prior-year event evidence is published.</p>`}
+    </section>`;
+}
+
 function renderDailyBrief() {
   const brief = document.getElementById("dailyBrief");
   if (!brief) return;
@@ -2552,6 +2944,7 @@ function renderAll() {
   renderOutcomes();
   renderVehicles();
   renderHistoricalTrends();
+  renderDailyForecast();
   renderDailyBrief();
   renderAlerts();
   renderActivity();
@@ -2704,6 +3097,9 @@ Promise.all([
   hydrateSlaEvidence(),
   hydrateHistorical311(),
   hydrateEvents(),
+  hydrateDailyForecast(),
+  hydrateRequestVehicleTraces(),
+  hydratePopulusOperations(),
   hydratePolicyBoundaries(),
   hydrateSiteMetrics()
 ]).then(initializeDurableMode).finally(() => {

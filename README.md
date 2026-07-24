@@ -29,9 +29,22 @@ available data proves.
   status is displayed separately and never overwrites the Base44/local
   lifecycle. Every request exposes the nearby-request lookup; an Administrator
   can attach the exact matched URL, public status, privacy-safe summary,
-  operator, and verification method. Contact details are rejected, and the
+  operator, verification method, and up to six public photograph URLs. Linked
+  photographs display in a manually scrollable request gallery. Contact
+  details are rejected, and the
   durable audit identifies changed evidence fields without copying their
   values.
+- Archived GBFS observations can be matched to each request with
+  `build_request_vehicle_traces.py`. Request detail then shows the likely
+  vehicle, previous observed location, bounded arrival window, minimum observed
+  dwell, alternatives, and confidence. These are evidence-scored candidates,
+  not claims about who parked or deployed a device.
+- Optional privacy-safe Populus hourly zone aggregates add fleet, rides,
+  deployments, removals, idle counts, and median idle time to each root-cause
+  review. The interface distinguishes demand-driven, supply-driven, and
+  idle-management patterns without asserting intent, negligence, or an SLA
+  breach from aggregate data alone. See
+  [POPULUS_DATA_CONTRACT.md](POPULUS_DATA_CONTRACT.md).
 - Requests can be assigned and moved through local lifecycle states.
 - The operational queue filters by lifecycle status, source-anchored date
   window, zone, complaint type, operator, and severity; search covers case,
@@ -109,6 +122,13 @@ snapshot used by this application, including cross-vendor stacking flags,
 complaint pressure, named-watch observations, and upcoming event context. See
 `BASE44_FORECAST_HANDOFF.md` for the fail-closed 6:00 AM agent instruction and
 the recommended 5:45 AM refresh order.
+
+When a compact forecast export is published to `daily-forecast.json`, the PWA
+shows 24/48/72-hour cards in a horizontal strip at the top of **Brief &
+alerts**. Closed horizons are scored against actual requests with MAE, WAPE,
+within-tolerance rate, hotspot precision, and hotspot recall. The same panel
+compares the current ISO week with the identical prior-year ISO week and shows
+same-event year-over-year results only when a matched event record exists.
 
 ## Site measurement
 
@@ -238,6 +258,16 @@ snapshot archive, rebuilds the current position payload, and recomputes the
 complete Goodale/Olentangy history. Set `GBFS_SNAPSHOT_ROOT` or pass
 `--snapshot-root` when the archive lives elsewhere. Invalid rows are counted
 and surfaced in the generated metadata instead of being silently accepted.
+
+Generate request-level vehicle candidates from the same archive:
+
+```bash
+npm run build:vehicle-traces
+```
+
+The matcher uses observations around each request timestamp and writes
+`request-vehicle-traces.json`. Sparse snapshot coverage produces low confidence
+or no match instead of a fabricated trajectory.
 
 ## Collect around major events
 

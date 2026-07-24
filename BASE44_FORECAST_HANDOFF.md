@@ -43,6 +43,28 @@ This instruction matches the verified live `MicromobilityHotspot` schema as of
 July 24, 2026. The schema stores all three horizons in one record and does not
 provide a separate idempotency-key field.
 
+## Display output contract
+
+The public PWA reads `daily-forecast.json` and displays it at the top of
+**Brief & alerts** as a manually scrollable 24/48/72-hour strip. Publishing the
+Base44 entity records alone does not update the PWA. A read-only export step
+must replace `daily-forecast.json` after the scheduled agent completes.
+
+Each published forecast should include:
+
+- `published_at` and `as_of`
+- a `forecast.horizons` array containing 24, 48, and 72-hour records
+- `predicted_complaints`, `confidence`, ranked `zones`, event context, and an
+  uncertainty statement for every horizon
+- an appended `history` record once a horizon closes, with predicted and
+  actual complaints plus predicted and actual hotspot zones
+- `event_comparisons` only when a current event has a defensible matched
+  prior-year event
+
+The interface calculates MAE, WAPE, within-tolerance rate, hotspot precision,
+hotspot recall, and same-ISO-week year-over-year request volume from those
+records. It does not score an open horizon.
+
 ## Refresh order
 
 Run these steps before the 6:00 AM Base44 schedule:
