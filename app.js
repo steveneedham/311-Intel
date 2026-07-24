@@ -1293,6 +1293,31 @@ function containsContactDetails(value) {
   return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/i.test(value);
 }
 
+async function copyToClipboard(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    let copied = false;
+    try {
+      copied = typeof document.execCommand === "function" && document.execCommand("copy");
+    } finally {
+      field.remove();
+    }
+    return copied;
+  }
+}
+
 function crossReferenceEvidenceText(operator, confidence) {
   if (operator === "unknown") return "The public OneView detail did not establish a single vendor.";
   const method = {
@@ -1375,7 +1400,7 @@ function renderDetail() {
       <p>Search the public system near <b>${escapeHtml(issue.address)}</b>, match request ID <b>${escapeHtml(issue.id)}</b>, then record only operational evidence—never resident names or contact details.</p>
       ${issue.sourceUrl
         ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open matched OneView request and photographs</a>`
-        : `<a href="${lookupUrl}" target="_blank" rel="noreferrer">Search nearby requests in OneView</a>`}
+        : `<a href="${lookupUrl}" target="_blank" rel="noreferrer" data-oneview-lookup>Search nearby requests in OneView</a>`}
     </div>
     <form class="detail-form evidence-review-form" id="evidenceReviewForm">
       <p class="eyebrow">Administrator evidence review</p>
@@ -1441,6 +1466,16 @@ function renderDetail() {
       </label>
       <button class="primary-button" type="submit">Save update</button>
     </form>`;
+  document.querySelector("[data-oneview-lookup]")?.addEventListener("click", () => {
+    void copyToClipboard(issue.address).then(copied => {
+      showNotice(
+        copied
+          ? `${issue.address} copied. Paste it into OneView's address search.`
+          : `OneView opened. Copy ${issue.address} into the address search.`,
+        copied ? "success" : "error"
+      );
+    });
+  });
   document.getElementById("evidenceReviewForm").addEventListener("submit", event => {
     event.preventDefault();
     if (!requireRole("admin", "record verified source evidence")) return;
