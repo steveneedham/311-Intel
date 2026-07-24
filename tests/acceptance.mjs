@@ -127,8 +127,29 @@ try {
   check(challengeState.lifecycle === "received" && challengeState.challenge === "submitted_to_city", "operator challenge is recorded without dismissing or changing the request lifecycle");
   check((await page.locator("#detailPanel").innerText()).includes("no waiver implied") && (await page.locator("#dataNotice").innerText()).includes("No waiver"), "challenge UI explicitly rejects any presumed waiver or SLA pause");
   await page.locator("#roleSelect").selectOption("admin");
+  await page.locator('#issueRows tr[data-id="CAS-3082644-P9D1M0"]').click();
+  const oneViewLookup = page.locator('#detailPanel a[data-oneview-lookup]');
+  check(await oneViewLookup.count() === 1, "unmatched requests expose the public nearby-request lookup");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText(value) {
+          window.__copiedOneViewAddress = value;
+          return Promise.resolve();
+        }
+      }
+    });
+  });
+  await oneViewLookup.evaluate(element => element.addEventListener("click", event => event.preventDefault()));
+  await oneViewLookup.click();
+  await page.waitForFunction(() => window.__copiedOneViewAddress);
+  check(
+    await page.evaluate(() => window.__copiedOneViewAddress) === "875 MICHIGAN AVE",
+    "OneView lookup copies the selected request address"
+  );
+  check((await page.locator("#dataNotice").innerText()).includes("875 MICHIGAN AVE copied"), "OneView lookup confirms the copied address");
   await page.locator('#issueRows tr[data-id="CAS-3085657-R4J3G9"]').click();
-  check(await page.locator('#detailPanel a[href="https://columbusoh.oneviewcrm.cc/servicerequests/nearby"]').count() === 1, "unmatched requests expose the public nearby-request lookup");
   await page.locator("#roleSelect").selectOption("viewer");
   check(await page.locator('#evidenceReviewForm button[type="submit"]').isDisabled(), "Viewer cannot record cross-reference evidence");
   await page.locator("#roleSelect").selectOption("admin");
