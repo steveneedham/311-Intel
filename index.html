@@ -22,7 +22,7 @@
     gtag('config', 'G-V40E4MZEMV');
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20260724-intervention-scope">
+  <link rel="stylesheet" href="styles.css?v=20260724-proactive-dispatch">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -74,7 +74,7 @@
     <button class="nav-item" type="button" data-view="hotspots">Hotspots</button>
     <button class="nav-item" type="button" data-view="trends">Historical trends</button>
     <button class="nav-item" type="button" data-view="compliance">Vendor SLA</button>
-    <button class="nav-item" type="button" data-view="interventions">Interventions</button>
+    <button class="nav-item" type="button" data-view="interventions">Proactive dispatch</button>
     <button class="nav-item" type="button" data-view="outcomes">Outcomes</button>
     <button class="nav-item" type="button" data-view="briefing">Brief & alerts</button>
     <button class="nav-item" type="button" data-view="activity">Activity</button>
@@ -230,7 +230,7 @@
         <label class="check-control"><input id="mapFlagsToggle" type="checkbox" checked> Cross-vendor flags</label>
         <label class="check-control"><input id="mapWatchesToggle" type="checkbox" checked> Named watches</label>
         <label class="check-control"><input id="mapPoliciesToggle" type="checkbox" checked> Policy boundaries</label>
-        <label class="check-control"><input id="mapInterventionsToggle" type="checkbox" checked> Intervention areas</label>
+        <label class="check-control"><input id="mapInterventionsToggle" type="checkbox" checked> Proactive dispatch areas</label>
         <span class="result-count" id="mapResultCount"></span>
       </form>
       <div class="map-search-summary" id="mapSearchSummary" aria-live="polite"></div>
@@ -248,7 +248,7 @@
         <span><i class="key-flag"></i>Cross-vendor flag</span>
         <span><i class="key-watch"></i>Named watch</span>
         <span><i class="key-policy"></i>No-park / no-ride boundary</span>
-        <span><i class="key-intervention"></i>Active intervention area</span>
+        <span><i class="key-intervention"></i>Proactive dispatch area</span>
       </div>
     </section>
 
@@ -382,12 +382,12 @@
     <section class="view" id="interventions" aria-labelledby="interventions-title">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Operational response</p>
-          <h2 id="interventions-title">Interventions requiring review</h2>
+          <p class="eyebrow">Experimental early warning</p>
+          <h2 id="interventions-title">Proactive vendor dispatches</h2>
         </div>
         <div class="section-actions">
-          <p class="section-note">Immediate responses, long-term policy changes, and experiments all require approval before dispatch.</p>
-          <button class="primary-button" id="openIntervention" type="button">Create intervention</button>
+          <p class="section-note">These are not 311 requests. They are voluntary pilot requests above current vendor requirements, intended to prevent likely future 311s in a defined place and timeframe.</p>
+          <button class="primary-button" id="openIntervention" type="button">Create proactive dispatch</button>
         </div>
       </div>
       <div class="card-list" id="interventionList"></div>
@@ -623,16 +623,16 @@
     <form class="intake-form" id="interventionForm">
       <div class="dialog-heading">
         <div>
-          <p class="eyebrow">Operational response</p>
-          <h2 id="intervention-dialog-title">Create intervention</h2>
+          <p class="eyebrow">Experimental early warning</p>
+          <h2 id="intervention-dialog-title">Create proactive dispatch</h2>
         </div>
         <button class="icon-button" id="closeIntervention" type="button" aria-label="Close intervention form">×</button>
       </div>
-      <p class="form-note">Create an immediate response, a longer-term policy or infrastructure change, or a time-bounded experiment.</p>
+      <p class="form-note">Create a forecast-based vendor action before a likely citizen complaint. This is not a 311 request or current SLA obligation; it must retain its evidence, map area, timeframe, and pilot status.</p>
       <div class="form-grid">
         <label>Intervention type <span>Required</span>
           <select id="interventionTypeInput" required>
-            <option value="field_response">Immediate operational response</option>
+            <option value="field_response">Proactive field action</option>
             <option value="policy">Long-term policy or infrastructure</option>
             <option value="experiment">Time-bounded experiment</option>
           </select>
@@ -672,7 +672,7 @@
           <input id="interventionRadiusInput" type="number" min="25" max="5000" step="1" required placeholder="250">
         </label>
         <fieldset class="full-field vendor-targets">
-          <legend>Vendors required to respond</legend>
+          <legend>Vendors requested to respond in the pilot</legend>
           <label><input id="interventionSpinInput" type="checkbox" checked> Spin</label>
           <label><input id="interventionVeoInput" type="checkbox" checked> Veo</label>
         </fieldset>
@@ -688,7 +688,7 @@
       <p class="form-error" id="interventionError" role="alert"></p>
       <div class="dialog-actions">
         <button class="secondary-button" id="cancelIntervention" type="button">Cancel</button>
-        <button class="primary-button" type="submit">Create for review</button>
+        <button class="primary-button" type="submit">Create forecast for review</button>
       </div>
     </form>
   </dialog>
@@ -733,6 +733,6 @@
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="app.js?v=20260724-intervention-scope"></script>
+  <script src="app.js?v=20260724-proactive-dispatch"></script>
 </body>
 </html>
