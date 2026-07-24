@@ -325,6 +325,9 @@ async function initializeDurableMode() {
       currentRole = session.role;
       localStorage.setItem(ROLE_KEY, currentRole);
       await loadDurableState();
+      if (typeof window.posthog !== "undefined") {
+        window.posthog.identify(session.username, { role: session.role });
+      }
     }
   } catch {
     durableSession.available = false;
@@ -361,6 +364,10 @@ async function submitAuth(event) {
     document.getElementById("roleSelect").value = currentRole;
     renderDurableMode();
     renderAll();
+    if (typeof window.posthog !== "undefined") {
+      window.posthog.identify(session.username, { role: session.role });
+      window.posthog.capture("user_signed_in", { role: session.role });
+    }
     showNotice(`Signed in as ${session.username}. Durable workflow storage is active.`, "success");
   } catch (authError) {
     error.textContent = authError.message;
@@ -383,6 +390,10 @@ async function signOutDurableMode() {
   document.getElementById("roleSelect").value = currentRole;
   renderDurableMode();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("user_signed_out");
+    window.posthog.reset();
+  }
   showNotice("Signed out. Durable records remain on the server; local trial controls are available in Viewer mode.");
 }
 
@@ -611,6 +622,13 @@ async function importJsonFile(file) {
   if (unique.length || rejected) recordAudit("records_imported", file.name, `${unique.length} added; ${valid.length - unique.length} duplicates; ${rejected} sent to review`);
   saveState();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("records_imported", {
+      records_added: unique.length,
+      records_duplicate: valid.length - unique.length,
+      records_rejected: rejected,
+    });
+  }
   showNotice(
     `Imported ${unique.length} new request${unique.length === 1 ? "" : "s"}; ${valid.length - unique.length} duplicate${valid.length - unique.length === 1 ? "" : "s"} skipped; ${rejected} invalid record${rejected === 1 ? "" : "s"} sent to review.`,
     rejected ? "" : "success"
@@ -1045,6 +1063,12 @@ function exportTrialData() {
   anchor.download = `311-field-intelligence-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("data_exported", {
+      issue_count: state.issues.length,
+      intervention_count: state.interventions.length,
+    });
+  }
 }
 
 function defaultIntakeTime() {
@@ -1114,6 +1138,14 @@ function submitIntake(event) {
   document.getElementById("filters").reset();
   closeIntakeDialog();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("request_created", {
+      complaint_type: issue.type,
+      zone: issue.zone,
+      operator: issue.operator,
+      priority: issue.priority,
+    });
+  }
   showNotice(`${issue.id} added to the operational queue.`, "success");
 }
 
@@ -1201,6 +1233,9 @@ function recordSectionView(section) {
   );
   if (typeof window.gtag === "function") {
     window.gtag("event", "section_view", { section_name: section });
+  }
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("section_viewed", { section_name: section });
   }
 }
 
@@ -1825,6 +1860,15 @@ function renderDetail() {
     recordAudit("cross_reference_verified", issue.id, `OneView evidence recorded; ${issue.type}; ${operator}`);
     saveState();
     renderAll();
+    if (typeof window.posthog !== "undefined") {
+      window.posthog.capture("evidence_verified", {
+        complaint_type: issue.type,
+        operator: issue.operator,
+        operator_confidence: issue.operatorConfidence,
+        accessibility_evidence: issue.accessibilityEvidence,
+        photo_count: photoUrls.length,
+      });
+    }
     showNotice(`${issue.id} OneView evidence saved without changing its local lifecycle status.`, "success");
   });
   panel.querySelectorAll(".linked-photo img").forEach(image => {
@@ -1859,6 +1903,12 @@ function renderDetail() {
     recordAudit("accessibility_review_updated", issue.id, `${label(challengeStatus)}; evidence note ${challengeNote ? "recorded" : "cleared"}; no waiver or lifecycle change implied`);
     saveState();
     renderAll();
+    if (typeof window.posthog !== "undefined") {
+      window.posthog.capture("accessibility_review_updated", {
+        challenge_status: challengeStatus,
+        has_evidence_note: Boolean(challengeNote),
+      });
+    }
     showNotice(`${issue.id} review status saved. No waiver, dismissal, SLA pause, or lifecycle change is implied.`, "success");
   });
   document.getElementById("issueUpdateForm").addEventListener("submit", event => {
@@ -1874,7 +1924,18 @@ function renderDetail() {
       previous.status !== issue.status ? `status: ${previous.status} → ${issue.status}` : "",
       previous.notes !== issue.notes ? "operational note updated" : ""
     ].filter(Boolean).join("; ");
-    if (changes) recordAudit("request_updated", issue.id, changes);
+    if (changes) {
+      recordAudit("request_updated", issue.id, changes);
+      if (typeof window.posthog !== "undefined") {
+        window.posthog.capture("request_updated", {
+          complaint_type: issue.type,
+          zone: issue.zone,
+          new_status: issue.status,
+          previous_status: previous.status,
+          team_assigned: Boolean(issue.team),
+        });
+      }
+    }
     saveState();
     renderAll();
   });
@@ -2005,6 +2066,15 @@ function generateHotspotRecommendation(zone) {
   recordAudit("intervention_recommended", item.id, `${zone} · score ${hotspot.score} · ${hotspot.issues.length} source records`);
   saveState();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("intervention_recommended", {
+      zone,
+      hotspot_score: hotspot.score,
+      hotspot_tier: hotspot.tier,
+      source_issue_count: hotspot.issues.length,
+      has_event_evidence: eventEvidence.length > 0,
+    });
+  }
   showNotice(`${item.id} proactive forecast created for review. It is not a 311 request.`, "success");
 }
 
@@ -2310,6 +2380,14 @@ function submitIntervention(event) {
   saveState();
   closeInterventionDialog();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("intervention_created", {
+      intervention_type: interventionType,
+      cadence,
+      zone,
+      vendor_count: targetVendors.length,
+    });
+  }
   showNotice(`${item.id} proactive forecast created for review. It is not a 311 request.`, "success");
 }
 
@@ -2517,6 +2595,15 @@ function renderInterventions() {
       }
       saveState();
       renderAll();
+      if (typeof window.posthog !== "undefined") {
+        window.posthog.capture("intervention_transitioned", {
+          action: button.dataset.action,
+          new_status: item.status,
+          previous_status: previousStatus,
+          zone: item.zone,
+          intervention_type: item.interventionType || "field_response",
+        });
+      }
     });
   });
 }
