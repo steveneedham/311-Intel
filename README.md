@@ -35,6 +35,12 @@ available data proves.
   address, zone, type, and operator.
 - Explainable hotspot scores use priority, recency, accessibility relevance,
   and same-address burst suppression.
+- The operational map overlays 52 features from 17 published Columbus
+  no-parking, mandatory-parking, and no-ride policies. A reproducible spatial
+  join finds 26 of the 104 loaded complaints within 25 metres of a policy
+  boundary, 29 within 50 metres, and 31 within 100 metres. The interface treats
+  this as a hypothesis signal and requires a matched control set before claiming
+  disproportionate concentration or causation.
 - High and Critical hotspots can generate evidence-linked recommendations.
 - Administrator-only approval, dispatch, completion, and skip transitions are
   recorded in the local activity ledger.
@@ -138,7 +144,8 @@ SQLite persistence across reload, audit attribution, and inspectable workflow
 runs. Standard-library tests cover API authorization, CSRF, optimistic
 concurrency, Administrator-only evidence/intervention/workflow actions,
 recurring scheduled runs, alert deduplication, append-only audit/run
-protection, and deterministic GBFS refresh behavior.
+protection, deterministic GBFS refresh behavior, and policy-boundary selection
+and proximity calculations.
 
 ## Refresh archived GBFS evidence
 
@@ -156,6 +163,9 @@ and surfaced in the generated metadata instead of being silently accepted.
 
 - Vehicle clustering and event joins are review signals, not confirmed
   violations or causal findings.
+- Policy-boundary proximity does not prove that a geofence caused a complaint,
+  was active at report time, or produced enrichment relative to ordinary street
+  locations. The latter requires a matched spatial control set.
 - Keyword-based classifications and operator names are reviewable evidence, not
   automated image recognition. User-reviewed photographs confirm vendor
   identity for three specified requests; they do not automatically establish

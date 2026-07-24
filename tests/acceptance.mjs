@@ -230,10 +230,12 @@ try {
   const reviewText = await page.locator("#importReviewPanel").innerText();
   check(reviewText.includes("CAS-INCOMPLETE-REVIEW") && reviewText.includes("address is required") && reviewText.includes("reported time is missing or invalid"), "incomplete import is surfaced with actionable validation reasons");
   check(await page.locator('#issueRows tr[data-id="CAS-INCOMPLETE-REVIEW"]').count() === 0, "rejected import never enters the operational queue");
+  await page.locator('[data-view="map"]').click();
+  check((await page.locator("#mapResultCount").innerText()).includes("52 policy features"), "published policy features are joined to the operational map");
+  check(await page.locator(".leaflet-overlay-pane canvas").count() > 0, "published policy geometry renders as a map overlay");
   await page.locator('[data-view="hotspots"]').click();
   const policyText = await page.locator("#policyBoundaryAnalysis").innerText();
-  console.error(policyText);
-  check(policyText.includes("26") && policyText.includes("within 25 m") && policyText.includes("of 104"), "published policy boundary proximity summary renders");
+  check(policyText.includes("26") && policyText.toLowerCase().includes("within 25 m") && policyText.toLowerCase().includes("of 104"), "published policy boundary proximity summary renders");
   check(policyText.includes("matched control set") && policyText.includes("not evidence that a geofence caused"), "policy proximity does not claim causation or enrichment");
   check(await page.locator("#mapPoliciesToggle").isChecked(), "published policy boundary map layer is enabled by default");
   const recommendationButton = page.locator('[data-recommend-zone="Acceptance Zone"]');

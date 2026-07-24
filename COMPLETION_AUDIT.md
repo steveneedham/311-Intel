@@ -43,6 +43,14 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   event-window linked. Its watch count is six, compared with a non-event median
   of two. The UI explicitly says one linked observation is insufficient to
   establish recurrence or causation and links to the official schedule source.
+- A public Populus export adds 17 Columbus no-parking, mandatory-parking, and
+  no-ride policies represented by 52 mapped features. A reproducible
+  point-to-boundary join finds 26 of 104 complaints within 25 metres, 29 within
+  50 metres, and 31 within 100 metres; 24 complaint coordinates fall inside a
+  published policy zone. The map and hotspot view expose the evidence, source,
+  and exact thresholds. The interface does not claim policy activation at the
+  report time, causal effect, or disproportionate concentration without a
+  matched control set.
 - The verified 311 snapshot contains three N 4th Street complaints:
   `CAS-3085935-H5M2M1`, `CAS-3080008-R7Z5H2`, and `CAS-3070558-P1C4L9`.
   One is open. The app labels this an infrastructure-change watch tied to the
@@ -143,7 +151,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   dispatched, and completed it. Completion without a note was rejected.
   `OUT-002` was then created with explicit windows and evidence. A second
   recommendation, `INT-004`, proved the skipped path and created no outcome.
-- The packaged `npm test` browser acceptance suite passed all 61 checks on
+- The packaged `npm test` browser acceptance suite passed all 66 checks on
   2026-07-23. It starts an isolated local server, uses a disposable browser
   profile and fixture, and verifies source hydration, GA4 configuration,
   complete queue filters, invalid-import review, OneView lookup and evidence
@@ -213,7 +221,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | 1 | A new source complaint is ingested once and appears in the operational queue. | Proven locally | Browser test added `CAS-ACCEPTANCE-HOTSPOT` once and used it in the hotspot workflow. A malformed `CAS-INCOMPLETE-REVIEW` fixture was excluded from the queue and surfaced with specific missing-address, invalid-time, and invalid-coordinate reasons. Duplicate source IDs remain skipped. |
 | 2 | Classification and operator attribution include inspectable evidence. | Proven locally | Narrative inputs use deterministic ordered rules and show evidence boundaries. Accessibility keywords create `ADA concern`/`reported-claim`; only a recorded supporting photograph creates `ADA ramp`/`visually-confirmed`. Vendor attribution is independent. Three user-reviewed request photographs support operator identity overrides; the current 4th Avenue photo remains accessibility-inconclusive. |
 | 3 | An authorized user can assign a request, change status, and see an audit history. | Proven locally | The durable service authenticates a configured user, persists request and evidence updates in SQLite, and exposes append-only field-level history directly in request detail. The acceptance update survived reload and was attributed to `admin`. |
-| 4 | The complaint appears at the correct map location and in the correct zone. | Proven for available coordinates | The joined operational street map plots every selected 311 record at its stored latitude/longitude with source ID, address, zone, status, and priority. It overlays 3,592 GBFS positions, cross-vendor flags, and named watches on OpenStreetMap tiles. Source-zone correctness still depends on the upstream record. |
+| 4 | The complaint appears at the correct map location and in the correct zone. | Proven for available coordinates | The joined operational street map plots every selected 311 record at its stored latitude/longitude with source ID, address, zone, status, and priority. It overlays 3,592 GBFS positions, cross-vendor flags, named watches, and 52 published no-park/no-ride policy features on OpenStreetMap tiles. Source-zone correctness still depends on the upstream record. |
 | 5 | A qualifying cluster produces an explainable hotspot and recommendation. | Proven locally | A temporary reported accessibility fixture generated a score-7 High hotspot without claiming a confirmed violation. Operator created an intervention preserving its score, source record, independent signal, deterministic team, rationale, and transition. Viewer controls were disabled and duplicate active-zone recommendations are prevented. |
 | 6 | A recommendation cannot be dispatched before approval. | Proven locally | Browser test confirmed a recommended intervention exposes only Approve; Dispatch appears only after approval. |
 | 7 | Completing an intervention creates an outcome path with explicit dates. | Proven locally | Isolated Chromium testing completed recommended → approved → dispatched → completed, required a completion note, and created an inconclusive outcome with four ISO boundary timestamps, readable seven-day windows, baseline source IDs, and completion evidence. A separate skipped recommendation created no outcome. |
@@ -236,7 +244,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 
 - Install the declared Playwright development dependency with `npm install`.
 - Run `npm test` from the project root.
-- Expected current browser-only result: `passed: 61`.
+- Expected current browser-only result: `passed: 66`.
 - Run `npm run refresh:gbfs` to deterministically rebuild the current positions
   and complete watch history from the configured snapshot archive.
 - Run `npm run serve` with one or more `APP_*_PASSWORD` values to exercise
