@@ -72,6 +72,7 @@ try {
     `all ${preservedBase44Ids.length} Base44 IDs are preserved and City records are deduplicated`
   );
   check(await page.locator("#issueRows tr").count() === 8, "open queue shows eight unresolved current records");
+  check((await page.locator('#issueRows tr[data-id="CAS-3085935-H5M2M1"] td').nth(2).innerText()) === "Spin", "operational queue includes the verified vendor");
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
   check(await page.locator('link[rel="manifest"][href="manifest.webmanifest"]').count() === 1, "PWA manifest is linked");
@@ -304,6 +305,16 @@ try {
   check(lifecycle.intervention.transitions.map(item => item.status).join(",") === "recommended,approved,dispatched,completed", "all lifecycle transitions are recorded");
   check(Boolean(lifecycle.outcome?.baselineStart && lifecycle.outcome?.postEnd), "completion creates explicit outcome windows");
 
+  await page.locator('[data-view="site-metrics"]').click();
+  const metricsText = await page.locator("#site-metrics").innerText();
+  check(metricsText.includes("G-V40E4MZEMV") && metricsText.includes("Reporting connection required"), "metrics page distinguishes configured collection from unconnected aggregate reporting");
+  check(metricsText.includes("This device only") && metricsText.includes("not historical uptime"), "metrics page states its privacy and uptime measurement boundaries");
+  check(["Past 1 day", "Past 3 days", "Past 7 days", "Past 30 days", "Past 60 days", "Past 90 days"].every(label => metricsText.includes(label)), "metrics page includes 1-, 3-, 7-, 30-, 60-, and 90-day view windows");
+  check(metricsText.includes("104") && metricsText.includes("preserved complaint records") && metricsText.includes("0") && metricsText.includes("populated records in those derived entities"), "Base44 artifacts are integrated without presenting empty derived entities as live data");
+  await page.locator("#checkUptime").click();
+  await page.locator("#uptimeMetrics").getByText("Reachable now").waitFor();
+  check((await page.locator("#uptimeMetrics").innerText()).includes("Reachable now"), "current reachability is checked without claiming historical uptime");
+
   check(pageErrors.length === 0, "desktop run has no JavaScript page errors");
   await context.close();
 
@@ -314,6 +325,8 @@ try {
   await mobilePage.locator('[data-view="vehicles"]').click();
   check(await mobilePage.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth), "mobile document has no horizontal overflow");
   check((await mobilePage.locator("#pileupList").innerText()).includes("Columbus Crew vs. New York City FC"), "event evidence preserves mobile hierarchy");
+  await mobilePage.locator('[data-view="site-metrics"]').click();
+  check(await mobilePage.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth), "site metrics has no mobile horizontal overflow");
   await mobileContext.close();
 
   console.log(JSON.stringify({ passed: checks.length, checks }, null, 2));

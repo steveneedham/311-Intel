@@ -873,6 +873,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "scheduler_enabled": self.server.scheduler_enabled,
                     "scheduler_interval_seconds": self.server.scheduler_interval_seconds,
                     "city_sync_enabled": self.server.city_sync_enabled,
+                    "production_mode": self.server.production_mode,
                 },
             )
         elif path == "/api/session":
@@ -999,6 +1000,7 @@ def create_server(
     scheduler_enabled=False,
     scheduler_interval_seconds=300,
     city_sync_enabled=False,
+    production_mode=False,
 ):
     database = Database(database_path)
     configured_users = database.seed_users_from_environment()
@@ -1012,6 +1014,7 @@ def create_server(
     server.scheduler_enabled = bool(scheduler_enabled)
     server.scheduler_interval_seconds = max(1, int(scheduler_interval_seconds))
     server.city_sync_enabled = bool(city_sync_enabled)
+    server.production_mode = bool(production_mode)
     server.scheduler = None
     if server.scheduler_enabled:
         server.scheduler = WorkflowScheduler(
@@ -1021,6 +1024,38 @@ def create_server(
         )
         server.scheduler.start()
     return server
+
+
+def production_configuration_errors(
+    host,
+    database_path,
+    scheduler_enabled,
+    scheduler_interval_seconds,
+    city_sync_enabled,
+    environment=None,
+):
+    environment = os.environ if environment is None else environment
+    errors = []
+    database_path = Path(database_path)
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        errors.append("APP_HOST must accept platform traffic")
+    if not database_path.is_absolute():
+        errors.append("APP_DATABASE must be an absolute persistent-volume path")
+    if len(environment.get("APP_ADMIN_PASSWORD", "")) < 12:
+        errors.append("APP_ADMIN_PASSWORD must contain at least 12 characters")
+    if environment.get("APP_SECURE_COOKIES") != "1":
+        errors.append("APP_SECURE_COOKIES must be 1")
+    if not scheduler_enabled:
+        errors.append("APP_ENABLE_SCHEDULER must be 1")
+    if not city_sync_enabled:
+        errors.append("APP_ENABLE_CITY_SYNC must be 1")
+    if int(scheduler_interval_seconds) < 60:
+        errors.append("APP_SCHEDULER_INTERVAL_SECONDS must be at least 60")
+    if environment.get("APP_SINGLE_INSTANCE") != "1":
+        errors.append("APP_SINGLE_INSTANCE must be 1 for the SQLite deployment")
+    if environment.get("APP_BACKUP_CONFIRMED") != "1":
+        errors.append("APP_BACKUP_CONFIRMED must be 1 after backups are configured")
+    return errors
 
 
 def main():
@@ -1036,6 +1071,17 @@ def main():
     scheduler_enabled = os.environ.get("APP_ENABLE_SCHEDULER") == "1"
     city_sync_enabled = os.environ.get("APP_ENABLE_CITY_SYNC") == "1"
     scheduler_interval = int(os.environ.get("APP_SCHEDULER_INTERVAL_SECONDS", "300"))
+    production_mode = os.environ.get("APP_ENV") == "production"
+    if production_mode:
+        errors = production_configuration_errors(
+            args.host,
+            args.database,
+            scheduler_enabled,
+            scheduler_interval,
+            city_sync_enabled,
+        )
+        if errors:
+            parser.error("production configuration invalid: " + "; ".join(errors))
     server = create_server(
         args.host,
         args.port,
@@ -1044,6 +1090,7 @@ def main():
         scheduler_enabled=scheduler_enabled,
         scheduler_interval_seconds=scheduler_interval,
         city_sync_enabled=city_sync_enabled,
+        production_mode=production_mode,
     )
     print(
         json.dumps(
@@ -1054,6 +1101,7 @@ def main():
                 "scheduler_enabled": server.scheduler_enabled,
                 "scheduler_interval_seconds": server.scheduler_interval_seconds,
                 "city_sync_enabled": server.city_sync_enabled,
+                "production_mode": server.production_mode,
             }
         ),
         flush=True,

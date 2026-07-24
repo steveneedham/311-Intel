@@ -17,7 +17,11 @@ import sys
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from server import WorkflowScheduler, create_server  # noqa: E402
+from server import (  # noqa: E402
+    WorkflowScheduler,
+    create_server,
+    production_configuration_errors,
+)
 
 
 BASE_STATE = {
@@ -112,11 +116,59 @@ class DurableServerTest(unittest.TestCase):
         self.environment_patch.stop()
         self.temporary_directory.cleanup()
 
+    def test_production_configuration_fails_closed(self):
+        errors = production_configuration_errors(
+            "127.0.0.1",
+            Path("relative.sqlite3"),
+            False,
+            30,
+            False,
+            environment={},
+        )
+        self.assertIn("APP_HOST must accept platform traffic", errors)
+        self.assertIn(
+            "APP_DATABASE must be an absolute persistent-volume path", errors
+        )
+        self.assertIn(
+            "APP_ADMIN_PASSWORD must contain at least 12 characters", errors
+        )
+        self.assertIn("APP_SECURE_COOKIES must be 1", errors)
+        self.assertIn("APP_ENABLE_SCHEDULER must be 1", errors)
+        self.assertIn("APP_ENABLE_CITY_SYNC must be 1", errors)
+        self.assertIn(
+            "APP_SCHEDULER_INTERVAL_SECONDS must be at least 60", errors
+        )
+        self.assertIn(
+            "APP_SINGLE_INSTANCE must be 1 for the SQLite deployment", errors
+        )
+        self.assertIn(
+            "APP_BACKUP_CONFIRMED must be 1 after backups are configured", errors
+        )
+
+        valid_environment = {
+            "APP_ADMIN_PASSWORD": "administrator-pass-123",
+            "APP_SECURE_COOKIES": "1",
+            "APP_SINGLE_INSTANCE": "1",
+            "APP_BACKUP_CONFIRMED": "1",
+        }
+        self.assertEqual(
+            production_configuration_errors(
+                "0.0.0.0",
+                Path("/data/311-intel.sqlite3"),
+                True,
+                300,
+                True,
+                environment=valid_environment,
+            ),
+            [],
+        )
+
     def test_auth_versioning_permissions_and_append_only_audit(self):
         anonymous = ApiClient(self.base_url)
         status, health = anonymous.request("GET", "/api/health")
         self.assertEqual((status, health["storage"]), (200, "sqlite"))
         self.assertFalse(health["city_sync_enabled"])
+        self.assertFalse(health["production_mode"])
         self.assertEqual(anonymous.last_headers["X-Frame-Options"], "DENY")
         self.assertIn("frame-ancestors 'none'", anonymous.last_headers["Content-Security-Policy"])
         status, _ = anonymous.request("GET", "/api/state")

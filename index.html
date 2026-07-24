@@ -78,6 +78,7 @@
     <button class="nav-item" type="button" data-view="outcomes">Outcomes</button>
     <button class="nav-item" type="button" data-view="briefing">Brief & alerts</button>
     <button class="nav-item" type="button" data-view="activity">Activity</button>
+    <button class="nav-item" type="button" data-view="site-metrics">Site metrics</button>
   </nav>
 
   <main id="main">
@@ -164,6 +165,7 @@
                 <tr>
                   <th scope="col">Priority</th>
                   <th scope="col">Request</th>
+                  <th scope="col">Vendor</th>
                   <th scope="col">Zone</th>
                   <th scope="col">Age</th>
                   <th scope="col">Status</th>
@@ -485,6 +487,71 @@
         <div id="workflowRunList"></div>
       </section>
       <div class="activity-ledger" id="activityLedger"></div>
+    </section>
+
+    <section class="view" id="site-metrics" aria-labelledby="site-metrics-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Privacy-safe product analytics</p>
+          <h2 id="site-metrics-title">Site metrics</h2>
+        </div>
+        <p class="section-note">Aggregate audiences and behavior only. This page does not identify individual visitors.</p>
+      </div>
+
+      <div class="metrics metrics-page-summary" id="siteMetricsSummary" aria-label="Site measurement summary"></div>
+
+      <div class="site-metrics-grid">
+        <section class="metrics-panel" aria-labelledby="audience-metrics-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Audience</p>
+              <h3 id="audience-metrics-title">Who is using it most</h3>
+            </div>
+          </div>
+          <div id="audienceMetrics"></div>
+        </section>
+
+        <section class="metrics-panel" aria-labelledby="page-metrics-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Navigation</p>
+              <h3 id="page-metrics-title">Most-used sections</h3>
+            </div>
+          </div>
+          <div id="pageMetrics"></div>
+        </section>
+
+        <section class="metrics-panel" aria-labelledby="uptime-metrics-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Availability</p>
+              <h3 id="uptime-metrics-title">Uptime</h3>
+            </div>
+            <button class="secondary-button" id="checkUptime" type="button">Check now</button>
+          </div>
+          <div id="uptimeMetrics"></div>
+        </section>
+
+        <section class="metrics-panel" aria-labelledby="measurement-boundary-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Measurement boundary</p>
+              <h3 id="measurement-boundary-title">What is verified</h3>
+            </div>
+          </div>
+          <div class="measurement-boundary" id="measurementBoundary"></div>
+        </section>
+
+        <section class="metrics-panel metrics-panel-wide" aria-labelledby="base44-artifacts-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Read-only source artifacts</p>
+              <h3 id="base44-artifacts-title">Base44 integration</h3>
+            </div>
+          </div>
+          <div id="base44Artifacts"></div>
+        </section>
+      </div>
     </section>
   </main>
 
