@@ -1293,6 +1293,15 @@ function containsContactDetails(value) {
   return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/i.test(value);
 }
 
+function validHttpUrl(value) {
+  if (!value) return true;
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 async function copyToClipboard(value) {
   const text = String(value || "").trim();
   if (!text) return false;
@@ -1687,7 +1696,7 @@ function generateHotspotRecommendation(zone) {
   recordAudit("intervention_recommended", item.id, `${zone} · score ${hotspot.score} · ${hotspot.issues.length} source records`);
   saveState();
   renderAll();
-  showNotice(`${item.id} created for review. Approval is still required before dispatch.`, "success");
+  showNotice(`${item.id} proactive forecast created for review. It is not a 311 request.`, "success");
 }
 
 function renderHotspots() {
@@ -1796,31 +1805,78 @@ function vendorResponseComplete(item) {
   );
 }
 
+function vendorRoutingComplete(item) {
+  return interventionVendors(item).every(vendor => {
+    const response = item.vendorResponses?.[vendor];
+    return Boolean(
+      ["accepted", "acknowledged"].includes(response?.status) &&
+      response?.assignedTo?.trim() &&
+      response?.vendorPriority &&
+      response?.routingMethod
+    );
+  });
+}
+
 function renderVendorResponses(item) {
   if (!["dispatched", "completed"].includes(item.status)) return "";
   const vendors = interventionVendors(item);
   return `
     <section class="vendor-response-panel" aria-label="Vendor responses for ${escapeHtml(item.id)}">
+      <div class="forecast-boundary">
+        <p class="eyebrow">Proactive vendor dispatch · not a 311 request</p>
+        <p>This optional early-warning record anticipates likely demand in a defined place and timeframe. It does not represent a citizen report, predict a person or intent, or create an enforcement finding.</p>
+      </div>
       <div>
-        <p class="eyebrow">Vendor response</p>
-        <p>Every dispatched vendor must accept or acknowledge this intervention before completion.</p>
+        <p class="eyebrow">Vendor operational record</p>
+        <p>Each vendor records receipt, the on-duty assignment, priority, internal route, and any evidence. Slack is one routing option; vendors may use their own system.</p>
       </div>
       <div class="vendor-response-list">
         ${vendors.map(vendor => {
           const response = item.vendorResponses?.[vendor];
           const status = response?.status || "pending";
+          const editable = item.status === "dispatched" && roleAllows("operator");
           return `
             <div class="vendor-response-row">
-              <div>
+              <div class="vendor-response-summary">
                 <strong>${escapeHtml(vendor)}</strong>
                 <span class="badge badge-${status === "pending" ? "standard" : status === "accepted" ? "approved" : "in_progress"}">${escapeHtml(label(status))}</span>
-                ${response?.at ? `<small>${new Date(response.at).toLocaleString()} · ${escapeHtml(response.actor || "recorded response")}</small>` : ""}
+                ${response?.at ? `<small>Receipt ${new Date(response.at).toLocaleString()} · ${escapeHtml(response.actor || "recorded response")}</small>` : ""}
+                ${response?.routingUpdatedAt ? `<small>Routing updated ${new Date(response.routingUpdatedAt).toLocaleString()} · ${escapeHtml(response.routingActor || "recorded update")}</small>` : ""}
               </div>
               ${item.status === "dispatched" && status === "pending" ? `
                 <div class="vendor-response-actions">
                   <button class="secondary-button" type="button" data-vendor-response="accepted" data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}" ${!roleAllows("operator") ? "disabled" : ""}>Accept</button>
                   <button class="secondary-button" type="button" data-vendor-response="acknowledged" data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}" ${!roleAllows("operator") ? "disabled" : ""}>Acknowledge</button>
                 </div>` : ""}
+              ${status !== "pending" ? `
+                <form class="vendor-routing-form" data-vendor-routing data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}">
+                  <label>Assigned on-duty responder or team <span>Required</span>
+                    <input name="assignedTo" value="${escapeHtml(response?.assignedTo || "")}" placeholder="Columbus on-duty operations" ${editable ? "" : "disabled"} required>
+                  </label>
+                  <label>Vendor priority <span>Required</span>
+                    <select name="vendorPriority" ${editable ? "" : "disabled"} required>
+                      <option value="">Select priority</option>
+                      ${["immediate", "high", "routine", "monitor"].map(priority => `<option value="${priority}" ${response?.vendorPriority === priority ? "selected" : ""}>${label(priority)}</option>`).join("")}
+                    </select>
+                  </label>
+                  <label>Routed via <span>Required</span>
+                    <select name="routingMethod" ${editable ? "" : "disabled"} required>
+                      <option value="">Select route</option>
+                      ${["slack", "vendor_app", "email", "phone", "other"].map(method => `<option value="${method}" ${response?.routingMethod === method ? "selected" : ""}>${label(method)}</option>`).join("")}
+                    </select>
+                  </label>
+                  <label>Routing reference
+                    <input name="routingReference" value="${escapeHtml(response?.routingReference || "")}" placeholder="#columbus-ops, message URL, or vendor case ID" ${editable ? "" : "disabled"}>
+                  </label>
+                  <label class="vendor-routing-wide">Evidence note
+                    <textarea name="evidenceNote" placeholder="Vehicle movement, field observation, disposition, or follow-up evidence" ${editable ? "" : "disabled"}>${escapeHtml(response?.evidenceNote || "")}</textarea>
+                  </label>
+                  <label class="vendor-routing-wide">Evidence URL
+                    <input name="evidenceUrl" type="url" value="${escapeHtml(response?.evidenceUrl || "")}" placeholder="https://…" ${editable ? "" : "disabled"}>
+                  </label>
+                  <p class="form-error vendor-routing-wide" data-vendor-routing-error></p>
+                  ${editable ? `<button class="secondary-button vendor-routing-wide" type="submit">Save vendor routing</button>` : ""}
+                </form>` : ""}
             </div>`;
         }).join("")}
       </div>
@@ -1941,7 +1997,7 @@ function submitIntervention(event) {
   saveState();
   closeInterventionDialog();
   renderAll();
-  showNotice(`${item.id} created for review. Approval is required before dispatch.`, "success");
+  showNotice(`${item.id} proactive forecast created for review. It is not a 311 request.`, "success");
 }
 
 function renderInterventions() {
@@ -2017,10 +2073,50 @@ function renderInterventions() {
         at: now,
         actor: `local-${currentRole}`
       };
-      recordAudit("vendor_intervention_response", item.id, `${vendor} · ${response}`);
+      recordAudit("vendor_proactive_dispatch_response", item.id, `${vendor} · ${response}`);
       saveState();
       renderAll();
       showNotice(`${vendor} ${response} ${item.id}.`, "success");
+    });
+  });
+  list.querySelectorAll("form[data-vendor-routing]").forEach(form => {
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const item = state.interventions.find(intervention => intervention.id === form.dataset.id);
+      if (!item || item.status !== "dispatched") return;
+      if (!requireRole("operator", "record vendor routing")) return;
+      const vendor = form.dataset.vendor;
+      const response = item.vendorResponses?.[vendor];
+      if (!["accepted", "acknowledged"].includes(response?.status)) return;
+      const assignedTo = form.elements.assignedTo.value.trim();
+      const vendorPriority = form.elements.vendorPriority.value;
+      const routingMethod = form.elements.routingMethod.value;
+      const routingReference = form.elements.routingReference.value.trim();
+      const evidenceNote = form.elements.evidenceNote.value.trim();
+      const evidenceUrl = form.elements.evidenceUrl.value.trim();
+      const error = form.querySelector("[data-vendor-routing-error]");
+      if (!assignedTo || !vendorPriority || !routingMethod) {
+        error.textContent = "Record the on-duty assignment, vendor priority, and routing method.";
+        return;
+      }
+      if (!validHttpUrl(evidenceUrl)) {
+        error.textContent = "Enter a valid http or https evidence URL.";
+        return;
+      }
+      Object.assign(response, {
+        assignedTo,
+        vendorPriority,
+        routingMethod,
+        routingReference,
+        evidenceNote,
+        evidenceUrl,
+        routingUpdatedAt: new Date().toISOString(),
+        routingActor: `local-${currentRole}`
+      });
+      recordAudit("vendor_proactive_dispatch_routing_updated", item.id, `${vendor} · ${vendorPriority} · ${routingMethod} · assigned ${assignedTo}`);
+      saveState();
+      renderAll();
+      showNotice(`${vendor} routing recorded for ${item.id}.`, "success");
     });
   });
   list.querySelectorAll("button[data-action]").forEach(button => {
@@ -2041,6 +2137,14 @@ function renderInterventions() {
         );
         if (pendingVendors.length) {
           showNotice(`Vendor response required from ${pendingVendors.join(" and ")} before completion.`, "error");
+          return;
+        }
+        const incompleteRouting = interventionVendors(item).filter(vendor => {
+          const response = item.vendorResponses?.[vendor];
+          return !response?.assignedTo?.trim() || !response?.vendorPriority || !response?.routingMethod;
+        });
+        if (incompleteRouting.length) {
+          showNotice(`Vendor routing record required from ${incompleteRouting.join(" and ")} before completion.`, "error");
           return;
         }
         item.completionNotes = completionNotes;
