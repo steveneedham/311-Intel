@@ -112,6 +112,28 @@
               <span>Zone</span>
               <select id="zoneFilter"></select>
             </label>
+            <label>
+              <span>Reported</span>
+              <select id="dateFilter">
+                <option value="all">All loaded dates</option>
+                <option value="1">Source last 24 hours</option>
+                <option value="7">Source last 7 days</option>
+                <option value="30">Source last 30 days</option>
+              </select>
+            </label>
+            <label>
+              <span>Complaint type</span>
+              <select id="typeFilter"></select>
+            </label>
+            <label>
+              <span>Operator</span>
+              <select id="operatorFilter">
+                <option value="all">All operators</option>
+                <option value="Spin">Spin</option>
+                <option value="Veo">Veo</option>
+                <option value="unknown">Unknown</option>
+              </select>
+            </label>
           </form>
 
           <div class="table-wrap">
@@ -128,6 +150,17 @@
               <tbody id="issueRows"></tbody>
             </table>
           </div>
+          <section class="import-review" id="importReviewPanel" aria-labelledby="import-review-title" hidden>
+            <div class="import-review-heading">
+              <div>
+                <p class="eyebrow">Import review</p>
+                <h4 id="import-review-title">Records requiring correction</h4>
+              </div>
+              <button class="secondary-button" id="clearImportReview" type="button">Clear reviewed items</button>
+            </div>
+            <p>Rejected records are never added to the operational queue. Only the source identifier and validation reasons are retained here.</p>
+            <div id="importReviewList"></div>
+          </section>
         </section>
 
         <aside class="detail-panel" id="detailPanel" aria-live="polite">
@@ -332,11 +365,11 @@
           <p class="eyebrow">Vendor accountability</p>
           <h2 id="compliance-title">Shared-mobility service levels</h2>
         </div>
-        <p class="section-note">Official City thresholds are shown separately from results. Current 311 exports lack the timestamps needed for a defensible pass/fail calculation.</p>
+        <p class="section-note">Official City monthly-average thresholds are shown separately from observations. Current exports cannot establish an eligible monthly vendor mean.</p>
       </div>
       <article class="source-callout">
         <p class="eyebrow">Verified program structure</p>
-        <p>The City evaluates Spin and Veo across 28 standards in five performance areas. Published report cards document response thresholds, pass/fail decisions, event geofences, and enforcement progression. They do not establish that every 311 request is automatically routed or that every missed timeline produces a City fine.</p>
+        <p>The City evaluates Spin and Veo across 28 standards in five performance areas. Response-time standards are monthly aggregate averages: an individual duration above the target is an observation, not a standalone contractual failure. Published report cards also document event geofences and enforcement progression.</p>
         <a href="https://www.columbus.gov/files/sharedassets/city/v/1/public-service/appendix-state-of-program-2025_2_accessible.pdf" target="_blank" rel="noreferrer">Open official SLA report cards</a>
       </article>
       <div class="sla-evidence-summary" id="slaEvidenceSummary"></div>
@@ -344,7 +377,7 @@
       <article class="compliance-note">
         <p class="eyebrow">Evidence gap</p>
         <h3>What the public-records request would unlock</h3>
-        <p>Vendor notification, acknowledgment, removal, City verification, inclusion/exclusion reasons, and record-level SLA results are required before this application can recommend a warning, corrective action, or contractual penalty.</p>
+        <p>Vendor identity, assessment month, eligible-request population, notification and resolution timestamps, visual evidence review, and City inclusion/exclusion decisions are required before this application can calculate a monthly SLA result or recommend enforcement.</p>
         <a href="PUBLIC_RECORDS_REQUEST_DRAFT.md">Open the draft records request</a>
       </article>
     </section>
@@ -453,7 +486,7 @@
         </label>
         <label>Complaint type <span>Required</span>
           <select id="intakeType" required>
-            <option value="ADA ramp">ADA ramp</option>
+            <option value="ADA concern">ADA concern (reported)</option>
             <option value="Sidewalk block">Sidewalk block</option>
             <option value="Abandoned">Abandoned</option>
             <option value="Pile-up">Pile-up</option>

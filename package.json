@@ -2,6 +2,7 @@
   "name": "311-field-intelligence",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "description": "Evidence-forward Columbus 311 micromobility operations trial.",
   "type": "module",
   "scripts": {
@@ -11,6 +12,6 @@
     "test": "node tests/acceptance.mjs && node tests/durable_acceptance.mjs && python3 -m unittest tests/test_build_gbfs_snapshot.py tests/test_server.py"
   },
   "devDependencies": {
-    "playwright": "^1.54.0"
+    "playwright": "1.61.1"
   }
 }

@@ -14,7 +14,6 @@ import os
 import secrets
 import sqlite3
 import threading
-import time
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -379,13 +378,31 @@ def validate_transition(previous, candidate, role):
     candidate_issues = indexed(candidate.get("issues"))
     if not previous_issues.keys() <= candidate_issues.keys():
         raise PermissionError("operators cannot delete requests")
-    mutable_issue_fields = {"status", "team", "notes"}
+    mutable_issue_fields = {
+        "status",
+        "team",
+        "notes",
+        "accessibilityChallengeStatus",
+        "accessibilityChallengeNote",
+    }
     for issue_id, old in previous_issues.items():
         new = candidate_issues[issue_id]
         changed = {key for key in set(old) | set(new) if old.get(key) != new.get(key)}
         if not changed <= mutable_issue_fields:
             raise PermissionError(
                 f"operators cannot alter source fields for request {issue_id}"
+            )
+        city_findings = {"city_reviewing", "city_supported", "city_not_supported"}
+        if (
+            new.get("accessibilityChallengeStatus")
+            != old.get("accessibilityChallengeStatus")
+            and (
+                new.get("accessibilityChallengeStatus") in city_findings
+                or old.get("accessibilityChallengeStatus") in city_findings
+            )
+        ):
+            raise PermissionError(
+                f"administrator required to record City findings for request {issue_id}"
             )
 
     previous_interventions = indexed(previous.get("interventions"))
@@ -409,6 +426,16 @@ def summarize_change(previous, candidate):
     if previous is None:
         return "initial durable state"
     parts = []
+    previous_issues = indexed(previous.get("issues"))
+    candidate_issues = indexed(candidate.get("issues"))
+    for issue_id in previous_issues.keys() & candidate_issues.keys():
+        old = previous_issues[issue_id]
+        new = candidate_issues[issue_id]
+        changed = sorted(
+            key for key in set(old) | set(new) if old.get(key) != new.get(key)
+        )
+        if changed:
+            parts.append(f"request {issue_id} fields: {', '.join(changed)}")
     for key in ("issues", "interventions", "outcomes", "alertSubscriptions"):
         before = len(previous.get(key, []))
         after = len(candidate.get(key, []))
@@ -566,6 +593,22 @@ class AppHandler(SimpleHTTPRequestHandler):
         if os.environ.get("APP_REQUEST_LOG") == "1":
             super().log_message(format_string, *args)
 
+    def end_headers(self):
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://unpkg.com https://www.googletagmanager.com; "
+            "style-src 'self' https://unpkg.com; "
+            "img-src 'self' data: blob: https://unpkg.com https://*.tile.openstreetmap.org; "
+            "connect-src 'self' https://nominatim.openstreetmap.org "
+            "https://www.google-analytics.com https://region1.google-analytics.com; "
+            "base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+        )
+        super().end_headers()
+
     def json_response(self, status, payload, headers=None):
         body = json.dumps(payload, separators=(",", ":")).encode()
         self.send_response(status)
@@ -679,9 +722,10 @@ class AppHandler(SimpleHTTPRequestHandler):
                 self.json_response(HTTPStatus.UNAUTHORIZED, {"error": "invalid credentials"})
                 return
             token, csrf, expires = self.database.create_session(user["username"])
+            secure = "; Secure" if os.environ.get("APP_SECURE_COOKIES") == "1" else ""
             cookie = (
                 f"311_session={token}; HttpOnly; SameSite=Strict; Path=/; "
-                f"Max-Age={SESSION_HOURS * 3600}"
+                f"Max-Age={SESSION_HOURS * 3600}{secure}"
             )
             self.json_response(
                 HTTPStatus.OK,
@@ -768,8 +812,8 @@ def create_server(
 
 def main():
     parser = argparse.ArgumentParser(description="Serve 311 Field Intelligence")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default=os.environ.get("APP_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     parser.add_argument(
         "--database",
         type=Path,

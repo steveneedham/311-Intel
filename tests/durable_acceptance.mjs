@@ -66,6 +66,18 @@ try {
 
   const requestId = await page.locator("#issueRows tr[data-id]").first().getAttribute("data-id");
   await page.locator(`#issueRows tr[data-id="${requestId}"]`).click();
+  await page.locator("#crossReferenceUrlInput").fill("https://columbusoh.oneviewcrm.cc/servicerequests/22222222-2222-2222-2222-222222222222");
+  await page.locator("#crossReferenceSummaryInput").fill("Spin scooter blocks the ADA curb ramp at the reported intersection.");
+  await page.locator("#crossReferenceStatusInput").selectOption("assigned");
+  await page.locator("#crossReferenceOperatorInput").selectOption("Spin");
+  await page.locator("#crossReferenceConfidenceInput").selectOption("photo-and-text-confirmed");
+  await page.locator('#evidenceReviewForm button[type="submit"]').click();
+  await page.waitForFunction(async id => {
+    const response = await fetch("/api/state");
+    const payload = await response.json();
+    return payload.state?.issues?.find(issue => issue.id === id)?.crossReferenceUrl?.includes("22222222");
+  }, requestId);
+  check(true, "Administrator evidence review reaches durable state");
   await page.locator("#teamInput").selectOption("Central response");
   await page.locator("#statusInput").selectOption("assigned");
   await page.locator("#notesInput").fill("Durable acceptance field note.");
@@ -78,14 +90,26 @@ try {
   }, requestId);
   check(true, "request update reaches durable state");
 
+  await page.locator('[data-view="activity"]').click();
+  check((await page.locator("#workflowRunList").innerText()).includes("Scheduler disabled"), "scheduler activation boundary is visible");
+  await page.locator("#runWorkflows").click();
+  await page.waitForFunction(() => document.querySelectorAll(".workflow-run").length >= 2);
+  const workflowText = await page.locator("#workflowRunList").innerText();
+  check(workflowText.includes("Daily Brief") && workflowText.includes("Alert Evaluation"), "manual verification records both server workflows");
+  const workflowPayload = await page.evaluate(async () => (await fetch("/api/workflows")).json());
+  check(workflowPayload.runs.length === 2 && workflowPayload.runs.every(run => run.status === "success"), "workflow API exposes recent successful runs");
+
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.getElementById("roleSelect")?.disabled);
   await page.locator(`#issueRows tr[data-id="${requestId}"]`).click();
   check(await page.locator("#notesInput").inputValue() === "Durable acceptance field note.", "durable request update survives reload");
+  check(await page.locator("#crossReferenceSummaryInput").inputValue() === "Spin scooter blocks the ADA curb ramp at the reported intersection.", "verified cross-reference evidence survives reload");
+  check((await page.locator(".request-history").innerText()).includes("State Replaced") && (await page.locator(".request-history").innerText()).includes("crossReferenceUrl"), "request detail reconstructs durable field-level history");
 
   const audit = await page.evaluate(async () => (await fetch("/api/audit")).json());
   check(audit.entries.length >= 2, "server audit records bootstrap and update");
   check(audit.entries.every(entry => entry.actor === "admin"), "server audit attributes authenticated identity");
+  check(audit.entries.some(entry => entry.detail.includes("crossReferenceUrl")), "server audit names changed evidence fields without copying their values");
   check(pageErrors.length === 0, "durable browser run has no JavaScript errors");
   await context.close();
   console.log(JSON.stringify({ passed: checks.length, checks }, null, 2));

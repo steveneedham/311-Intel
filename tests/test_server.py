@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -16,7 +17,7 @@ import sys
 
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from server import create_server  # noqa: E402
+from server import WorkflowScheduler, create_server  # noqa: E402
 
 
 BASE_STATE = {
@@ -33,13 +34,22 @@ BASE_STATE = {
             "priority": "critical",
             "team": "",
             "notes": "",
+            "accessibilityChallengeStatus": "no_challenge",
+            "accessibilityChallengeNote": "",
             "lat": 39.96,
             "lng": -83.0,
         }
     ],
     "interventions": [],
     "outcomes": [],
-    "alertSubscriptions": [],
+    "alertSubscriptions": [
+        {
+            "id": "SUB-TEST-001",
+            "severity": "high",
+            "zone": "all",
+            "enabled": True,
+        }
+    ],
     "alertDeliveries": [],
     "auditLog": [{"id": "client-entry-must-not-be-stored"}],
 }
@@ -53,6 +63,7 @@ class ApiClient:
             urllib.request.HTTPCookieProcessor(self.cookies)
         )
         self.csrf = ""
+        self.last_headers = {}
 
     def request(self, method, path, payload=None, csrf=False):
         body = None if payload is None else json.dumps(payload).encode()
@@ -64,8 +75,10 @@ class ApiClient:
         )
         try:
             with self.opener.open(request) as response:
+                self.last_headers = dict(response.headers.items())
                 return response.status, json.loads(response.read())
         except urllib.error.HTTPError as error:
+            self.last_headers = dict(error.headers.items())
             return error.code, json.loads(error.read())
 
     def login(self, username, password):
@@ -101,6 +114,10 @@ class DurableServerTest(unittest.TestCase):
 
     def test_auth_versioning_permissions_and_append_only_audit(self):
         anonymous = ApiClient(self.base_url)
+        status, health = anonymous.request("GET", "/api/health")
+        self.assertEqual((status, health["storage"]), (200, "sqlite"))
+        self.assertEqual(anonymous.last_headers["X-Frame-Options"], "DENY")
+        self.assertIn("frame-ancestors 'none'", anonymous.last_headers["Content-Security-Policy"])
         status, _ = anonymous.request("GET", "/api/state")
         self.assertEqual(status, 401)
 
@@ -108,6 +125,8 @@ class DurableServerTest(unittest.TestCase):
         status, session = operator.login("operator", "operator-pass-123")
         self.assertEqual(status, 200)
         self.assertEqual(session["role"], "operator")
+        self.assertIn("HttpOnly", operator.last_headers["Set-Cookie"])
+        self.assertIn("SameSite=Strict", operator.last_headers["Set-Cookie"])
 
         status, saved = operator.request(
             "PUT", "/api/state", {"version": 0, "state": BASE_STATE}, csrf=True
@@ -120,12 +139,36 @@ class DurableServerTest(unittest.TestCase):
 
         assigned = deepcopy(durable["state"])
         assigned["issues"][0].update(
-            {"status": "assigned", "team": "Central response"}
+            {
+                "status": "assigned",
+                "team": "Central response",
+                "accessibilityChallengeStatus": "submitted_to_city",
+                "accessibilityChallengeNote": "Photo does not establish blocked clearance.",
+            }
         )
         status, saved = operator.request(
             "PUT", "/api/state", {"version": 1, "state": assigned}, csrf=True
         )
         self.assertEqual((status, saved["version"]), (200, 2))
+
+        city_finding = deepcopy(assigned)
+        city_finding["issues"][0]["accessibilityChallengeStatus"] = "city_supported"
+        status, payload = operator.request(
+            "PUT", "/api/state", {"version": 2, "state": city_finding}, csrf=True
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("administrator required to record City findings", payload["error"])
+
+        source_edit = deepcopy(assigned)
+        source_edit["issues"][0]["crossReferenceUrl"] = (
+            "https://columbusoh.oneviewcrm.cc/servicerequests/"
+            "33333333-3333-3333-3333-333333333333"
+        )
+        status, payload = operator.request(
+            "PUT", "/api/state", {"version": 2, "state": source_edit}, csrf=True
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("cannot alter source fields", payload["error"])
 
         recommended = deepcopy(assigned)
         recommended["interventions"].append(
@@ -174,10 +217,73 @@ class DurableServerTest(unittest.TestCase):
             all(entry["action"] == "state_replaced" for entry in audit["entries"])
         )
 
+        status, payload = operator.request(
+            "POST", "/api/workflows/run", {}, csrf=True
+        )
+        self.assertEqual(status, 403)
+
+        status, first_run = admin.request(
+            "POST", "/api/workflows/run", {}, csrf=True
+        )
+        self.assertEqual((status, first_run["status"]), (200, "success"))
+        self.assertEqual(
+            first_run["runs"]["alert_evaluation"]["new_delivery_count"], 1
+        )
+        status, second_run = admin.request(
+            "POST", "/api/workflows/run", {}, csrf=True
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(
+            second_run["runs"]["alert_evaluation"]["new_delivery_count"], 0
+        )
+        self.assertEqual(
+            second_run["runs"]["alert_evaluation"]["deduplicated_state_count"], 1
+        )
+        status, workflows = admin.request("GET", "/api/workflows")
+        self.assertEqual(status, 200)
+        self.assertEqual(workflows["delivery_count"], 1)
+        self.assertEqual(len(workflows["runs"]), 4)
+
         connection = self.server.RequestHandlerClass.database.connect()
         with self.assertRaises(Exception):
             connection.execute("DELETE FROM audit_log")
+        with self.assertRaises(Exception):
+            connection.execute("DELETE FROM workflow_runs")
         connection.close()
+
+    def test_scheduler_records_repeated_successful_runs(self):
+        admin = ApiClient(self.base_url)
+        status, _ = admin.login("admin", "administrator-pass-123")
+        self.assertEqual(status, 200)
+        status, saved = admin.request(
+            "PUT", "/api/state", {"version": 0, "state": BASE_STATE}, csrf=True
+        )
+        self.assertEqual((status, saved["version"]), (200, 1))
+
+        database = self.server.RequestHandlerClass.database
+        scheduler = WorkflowScheduler(database, 1)
+        scheduler.start()
+        time.sleep(1.25)
+        scheduler.stop()
+
+        runs = database.workflow_runs(limit=20)["runs"]
+        scheduled_daily = [
+            run
+            for run in runs
+            if run["workflow"] == "daily_brief"
+            and run["trigger"] == "scheduled"
+            and run["status"] == "success"
+        ]
+        scheduled_alerts = [
+            run
+            for run in runs
+            if run["workflow"] == "alert_evaluation"
+            and run["trigger"] == "scheduled"
+            and run["status"] == "success"
+        ]
+        self.assertGreaterEqual(len(scheduled_daily), 2)
+        self.assertGreaterEqual(len(scheduled_alerts), 2)
+        self.assertEqual(scheduled_alerts[0]["output"]["new_delivery_count"], 0)
 
 
 if __name__ == "__main__":
