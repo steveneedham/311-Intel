@@ -1,6 +1,21 @@
 const STORAGE_KEY = "311-field-intelligence-trial-v1";
 const ROLE_KEY = "311-field-intelligence-trial-role";
+const requestEvidenceOverrides = {
+  "CAS-3085935-H5M2M1": {
+    description: "Spin scooter blocking ADA accessibility on the sidewalk at 4th Avenue and 4th Street; a second improperly parked scooter was reported at 4th Street and 5th Avenue.",
+    officialStatus: "assigned",
+    accessibilityEvidence: "photo_inconclusive",
+    evidence: "User-verified public OneView request detail; personal names and correspondence references were intentionally omitted.",
+    sourceUrl: "https://columbusoh.oneviewcrm.cc/servicerequests/84b19b9a-2886-f111-a86d-000d3adc4910"
+  }
+};
 const operatorEvidenceOverrides = {
+  "CAS-3085935-H5M2M1": {
+    operator: "Spin",
+    confidence: "photo-and-text-confirmed",
+    evidence: "The official OneView narrative explicitly identifies Spin, and user-reviewed request photographs show an orange Spin device.",
+    sourceUrl: "https://columbusoh.oneviewcrm.cc/servicerequests/84b19b9a-2886-f111-a86d-000d3adc4910"
+  },
   "CAS-3080008-R7Z5H2": {
     operator: "Veo",
     confidence: "photo-confirmed",
@@ -41,6 +56,7 @@ const initialState = {
     { id: "SUB-001", severity: "critical", zone: "all", enabled: true, createdAt: "2026-07-23T12:00:00Z" }
   ],
   alertDeliveries: [],
+  importReview: [],
   auditLog: []
 };
 
@@ -48,6 +64,15 @@ const teams = ["", "Central response", "North response", "West response", "South
 let state = loadState();
 let selectedIssueId = null;
 let currentRole = localStorage.getItem(ROLE_KEY) || "admin";
+let durableSession = {
+  available: false,
+  authenticated: false,
+  username: "",
+  role: "",
+  csrf: "",
+  version: 0
+};
+let durableSaveQueue = Promise.resolve();
 let vehicleState = { vehicles: [], snapshotId: "", sourceFile: "", pileups: [], watchHistory: [] };
 let operationalMap = null;
 let operationalMapLayers = null;
@@ -56,6 +81,8 @@ let operationalMapSearchLayer = null;
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
+let workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
+let policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "loading" };
 const vehicleWatchLocations = [
   {
     id: "WATCH-GOODALE-OLENTANGY",
@@ -90,7 +117,10 @@ function roleAllows(required) {
 
 function requireRole(required, action) {
   if (roleAllows(required)) return true;
-  showNotice(`${label(currentRole)} role cannot ${action}. Switch the trial role to ${label(required)} or higher.`, "error");
+  const direction = durableSession.authenticated
+    ? `An authenticated ${label(required)} is required.`
+    : `Switch the trial role to ${label(required)} or higher.`;
+  showNotice(`${label(currentRole)} role cannot ${action}. ${direction}`, "error");
   return false;
 }
 
@@ -99,7 +129,7 @@ function recordAudit(action, target, detail = "") {
   state.auditLog.push({
     id: `AUD-${crypto.randomUUID()}`,
     at: new Date().toISOString(),
-    actor: `local-${currentRole}`,
+    actor: durableSession.authenticated ? durableSession.username : `local-${currentRole}`,
     role: currentRole,
     action,
     target,
@@ -109,6 +139,213 @@ function recordAudit(action, target, detail = "") {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (durableSession.authenticated && roleAllows("operator")) {
+    durableSaveQueue = durableSaveQueue
+      .then(writeDurableState)
+      .catch(error => {
+        console.error("Durable state save failed.", error);
+        showNotice(`Durable save failed: ${error.message}`, "error");
+      });
+  }
+}
+
+async function apiJson(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (options.csrf && durableSession.csrf) headers["X-CSRF-Token"] = durableSession.csrf;
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    cache: "no-store"
+  });
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) throw new Error("Durable service is unavailable.");
+  const payload = await response.json();
+  if (!response.ok) {
+    const error = new Error(payload.error || `Service request failed with ${response.status}`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
+}
+
+function serverAuditEntries(entries = []) {
+  return entries.map(entry => ({
+    id: `SERVER-AUD-${entry.sequence}`,
+    at: entry.at,
+    actor: entry.actor,
+    role: entry.role,
+    action: entry.action,
+    target: entry.target,
+    detail: entry.detail
+  }));
+}
+
+async function writeDurableState() {
+  try {
+    const result = await apiJson("/api/state", {
+      method: "PUT",
+      csrf: true,
+      body: { version: durableSession.version, state }
+    });
+    durableSession.version = result.version;
+  } catch (error) {
+    if (error.status === 409 && Number.isInteger(error.payload?.version)) {
+      durableSession.version = error.payload.version;
+      throw new Error("another session changed the workflow; reload before saving again");
+    }
+    throw error;
+  }
+}
+
+async function loadDurableState() {
+  const [workflow, audit, workflows] = await Promise.all([
+    apiJson("/api/state"),
+    apiJson("/api/audit"),
+    apiJson("/api/workflows")
+  ]);
+  workflowState = {
+    enabled: workflows.enabled,
+    citySyncEnabled: workflows.city_sync_enabled,
+    intervalSeconds: workflows.interval_seconds,
+    runs: workflows.runs || [],
+    deliveryCount: workflows.delivery_count || 0,
+    status: "available"
+  };
+  durableSession.version = workflow.version;
+  if (workflow.state?.issues) {
+    state = {
+      ...workflow.state,
+      auditLog: serverAuditEntries(audit.entries)
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } else if (roleAllows("operator")) {
+    await writeDurableState();
+  }
+}
+
+function renderDurableMode() {
+  const roleSelect = document.getElementById("roleSelect");
+  const authButton = document.getElementById("authButton");
+  const roleLabel = document.getElementById("roleControlLabel");
+  const persistenceNote = document.getElementById("persistenceNote");
+  const activityNote = document.getElementById("activityStorageNote");
+  authButton.hidden = !durableSession.available;
+  document.getElementById("workflowMonitor").hidden = !durableSession.authenticated;
+  roleSelect.disabled = durableSession.authenticated;
+  roleLabel.textContent = durableSession.authenticated ? "Authenticated role" : "Trial role";
+  authButton.textContent = durableSession.authenticated
+    ? `Sign out ${durableSession.username}`
+    : "Sign in";
+  if (durableSession.authenticated) {
+    persistenceNote.textContent = `Workflow changes are versioned in SQLite as ${durableSession.username}; the Base44 source snapshot remains read-only.`;
+    activityNote.textContent = "Server-side audit entries are append-only and attributed to authenticated identities.";
+  } else {
+    persistenceNote.textContent = "Source snapshot is read-only; assignments and notes stay in this browser.";
+    activityNote.textContent = "Append-only within this browser trial. Sign in through the durable local service for server-enforced storage.";
+  }
+}
+
+async function initializeDurableMode() {
+  try {
+    const session = await apiJson("/api/session");
+    durableSession.available = true;
+    if (session.authenticated) {
+      durableSession = {
+        ...durableSession,
+        authenticated: true,
+        username: session.username,
+        role: session.role,
+        csrf: session.csrf
+      };
+      currentRole = session.role;
+      localStorage.setItem(ROLE_KEY, currentRole);
+      await loadDurableState();
+    }
+  } catch {
+    durableSession.available = false;
+  }
+  document.getElementById("roleSelect").value = currentRole;
+  renderDurableMode();
+}
+
+async function submitAuth(event) {
+  event.preventDefault();
+  const error = document.getElementById("authError");
+  error.textContent = "";
+  try {
+    const session = await apiJson("/api/login", {
+      method: "POST",
+      body: {
+        username: document.getElementById("authUsername").value.trim(),
+        password: document.getElementById("authPassword").value
+      }
+    });
+    durableSession = {
+      available: true,
+      authenticated: true,
+      username: session.username,
+      role: session.role,
+      csrf: session.csrf,
+      version: 0
+    };
+    currentRole = session.role;
+    localStorage.setItem(ROLE_KEY, currentRole);
+    await loadDurableState();
+    document.getElementById("authDialog").close();
+    document.getElementById("authForm").reset();
+    document.getElementById("roleSelect").value = currentRole;
+    renderDurableMode();
+    renderAll();
+    showNotice(`Signed in as ${session.username}. Durable workflow storage is active.`, "success");
+  } catch (authError) {
+    error.textContent = authError.message;
+  }
+}
+
+async function signOutDurableMode() {
+  await apiJson("/api/logout", { method: "POST", csrf: true, body: {} });
+  durableSession = {
+    available: true,
+    authenticated: false,
+    username: "",
+    role: "",
+    csrf: "",
+    version: 0
+  };
+  workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
+  currentRole = "viewer";
+  localStorage.setItem(ROLE_KEY, currentRole);
+  document.getElementById("roleSelect").value = currentRole;
+  renderDurableMode();
+  renderAll();
+  showNotice("Signed out. Durable records remain on the server; local trial controls are available in Viewer mode.");
+}
+
+async function runServerWorkflows() {
+  if (!requireRole("admin", "run server workflows")) return;
+  try {
+    await durableSaveQueue;
+    const result = await apiJson("/api/workflows/run", {
+      method: "POST",
+      csrf: true,
+      body: {}
+    });
+    const workflows = await apiJson("/api/workflows");
+    workflowState = {
+      enabled: workflows.enabled,
+      citySyncEnabled: workflows.city_sync_enabled,
+      intervalSeconds: workflows.interval_seconds,
+      runs: workflows.runs || [],
+      deliveryCount: workflows.delivery_count || 0,
+      status: "available"
+    };
+    renderActivity();
+    showNotice(`Server workflows completed with status ${result.status}.`, result.status === "success" ? "success" : "");
+  } catch (error) {
+    showNotice(`Workflow run failed: ${error.message}`, "error");
+  }
 }
 
 function showNotice(message, tone = "") {
@@ -123,42 +360,161 @@ function showNotice(message, tone = "") {
 
 function normalizedPriority(record) {
   if (["critical", "high", "standard"].includes(record.priority)) return record.priority;
-  if (/ada|entrance/i.test(record.complaint_type || record.type || "")) return "critical";
-  if (/pile|sidewalk/i.test(record.complaint_type || record.type || "")) return "high";
+  if (/ada ramp|entrance/i.test(record.complaint_type || record.type || "")) return "critical";
+  if (/ada concern|pile|sidewalk/i.test(record.complaint_type || record.type || "")) return "high";
   return "standard";
 }
 
+function sourceNarrative(record) {
+  const description = String(record.description || "").trim();
+  if (description) return description;
+  const descriptor = String(record.descriptor || "").trim();
+  return /^shared electric bike\s*&\s*scooters$/i.test(descriptor) ? "" : descriptor;
+}
+
+function classifyComplaint(record, accessibilityEvidence = "not_assessed") {
+  const narrative = sourceNarrative(record);
+  const accessibilityPattern = /\b(ada|wheelchair|curb (?:cut|ramp)|accessibility|tactile)\b/i;
+  if ((narrative && accessibilityPattern.test(narrative)) || accessibilityEvidence === "photo_supporting") {
+    if (accessibilityEvidence === "photo_supporting") {
+      return {
+        type: "ADA ramp",
+        confidence: "visually-confirmed",
+        evidence: "A reviewer recorded visual evidence supporting an obstructed accessible path or curb ramp."
+      };
+    }
+    const evidenceBoundary = {
+      no_photo: "No request photograph was available for visual confirmation.",
+      photo_inconclusive: "A photograph was reviewed, but it does not conclusively establish blocked accessible clearance.",
+      photo_not_supporting: "A photograph was reviewed and does not visually support the reported accessibility obstruction.",
+      not_assessed: "Visual evidence has not been assessed."
+    }[accessibilityEvidence] || "Visual evidence has not been assessed.";
+    return {
+      type: "ADA concern",
+      confidence: "reported-claim",
+      evidence: `The supplied narrative alleges an accessibility obstruction. ${evidenceBoundary} Treat this as a reported concern, not a confirmed ADA violation.`
+    };
+  }
+  const rules = [
+    { type: "Business entrance", pattern: /\b(entrance|doorway|driveway|exit)\b/i, rule: "entrance or driveway keyword" },
+    { type: "Pile-up", pattern: /\b(pile[\s-]?up|cluster|stack(?:ed|ing)?|multiple|several|group of)\b/i, rule: "multi-vehicle concentration keyword" },
+    { type: "Abandoned", pattern: /\b(abandon(?:ed)?|damaged|broken|discarded)\b/i, rule: "abandoned or damaged-device keyword" },
+    { type: "No-ride zone", pattern: /\b(no[\s-]?ride|geofence|riding through|pedestrian plaza)\b/i, rule: "riding or geofence keyword" },
+    { type: "Sidewalk block", pattern: /\b(sidewalk|pedestrian path|walkway|blocking|obstruct(?:ed|ion|ing)?)\b/i, rule: "pedestrian-path obstruction keyword" }
+  ];
+  const match = narrative ? rules.find(rule => rule.pattern.test(narrative)) : null;
+  if (match) {
+    return {
+      type: match.type,
+      confidence: "rule-matched",
+      evidence: `Matched ${match.rule} in the supplied narrative.`
+    };
+  }
+  const sourceType = String(record.complaint_type || record.type || "other");
+  return {
+    type: label(sourceType),
+    confidence: "source-label",
+    evidence: narrative
+      ? `No classification keyword matched; retained source label “${label(sourceType)}”.`
+      : `Retained source label “${label(sourceType)}”; the export contains no complaint narrative to classify.`
+  };
+}
+
+function attributeOperator(record, sourceId) {
+  const override = operatorEvidenceOverrides[sourceId];
+  if (override) return override;
+  const sourceOperator = String(record.operator || "").trim();
+  if (/^(veo|spin)$/i.test(sourceOperator)) {
+    const operator = sourceOperator.toLowerCase() === "veo" ? "Veo" : "Spin";
+    return {
+      operator,
+      confidence: "source-provided",
+      evidence: `The source record identifies ${operator}.`,
+      sourceUrl: ""
+    };
+  }
+  const narrative = sourceNarrative(record);
+  const mentionsVeo = /\bveo\b/i.test(narrative);
+  const mentionsSpin = /\bspin\b/i.test(narrative);
+  if (mentionsVeo !== mentionsSpin) {
+    const operator = mentionsVeo ? "Veo" : "Spin";
+    return {
+      operator,
+      confidence: "description-keyword",
+      evidence: `The supplied narrative explicitly names ${operator}; field or photo verification is still recommended.`,
+      sourceUrl: ""
+    };
+  }
+  return {
+    operator: "unknown",
+    confidence: mentionsVeo && mentionsSpin ? "ambiguous" : "unattributed",
+    evidence: mentionsVeo && mentionsSpin
+      ? "The narrative names both vendors, so no single operator was assigned."
+      : "Neither the source operator field nor the supplied narrative identifies a vendor.",
+    sourceUrl: ""
+  };
+}
+
 function normalizeImportedIssue(record) {
+  if (importRecordProblems(record).length) return null;
   const sourceId = record.source_id || record.id;
   const reportedAt = record.reported_at || record.reportedAt;
   const latitude = Number(record.latitude ?? record.lat);
   const longitude = Number(record.longitude ?? record.lng);
-  if (!sourceId || !record.address || !reportedAt || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-    return null;
-  }
   const rawStatus = record.status || "received";
   const status = ["received", "assigned", "in_progress", "resolved"].includes(rawStatus)
     ? rawStatus
     : rawStatus === "closed" ? "resolved" : "received";
-  const operatorEvidence = operatorEvidenceOverrides[sourceId] || null;
+  const requestEvidence = requestEvidenceOverrides[sourceId];
+  const effectiveRecord = requestEvidence
+    ? { ...record, description: requestEvidence.description }
+    : record;
+  const accessibilityEvidence = requestEvidence?.accessibilityEvidence || "not_assessed";
+  const classification = classifyComplaint(effectiveRecord, accessibilityEvidence);
+  const operatorEvidence = attributeOperator(effectiveRecord, sourceId);
   return {
     id: String(sourceId),
-    type: label(record.complaint_type || record.type || "other"),
-    descriptor: String(record.descriptor || record.description || "No source description supplied"),
+    type: classification.type,
+    classificationConfidence: classification.confidence,
+    classificationEvidence: classification.evidence,
+    descriptor: String(requestEvidence?.description || record.descriptor || record.description || "No source description supplied"),
     address: String(record.address),
     zone: String(record.zone_id || record.zone || "Unassigned zone").replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase()),
-    operator: operatorEvidence?.operator || String(record.operator || "unknown"),
-    operatorConfidence: operatorEvidence?.confidence || (record.operator && record.operator !== "unknown" ? "source-provided" : "unattributed"),
-    operatorEvidence: operatorEvidence?.evidence || "",
-    sourceUrl: operatorEvidence?.sourceUrl || "",
+    operator: operatorEvidence.operator,
+    operatorConfidence: operatorEvidence.confidence,
+    operatorEvidence: operatorEvidence.evidence,
+    sourceUrl: requestEvidence?.sourceUrl || operatorEvidence.sourceUrl || "",
+    crossReferenceUrl: requestEvidence?.sourceUrl || operatorEvidence.sourceUrl || "",
+    crossReferenceSummary: requestEvidence?.description || "",
+    crossReferenceStatus: requestEvidence?.officialStatus || "",
+    crossReferenceEvidence: requestEvidence?.evidence || "",
+    accessibilityEvidence,
+    accessibilityChallengeStatus: "no_challenge",
+    accessibilityChallengeNote: "",
     reportedAt: new Date(reportedAt).toISOString(),
     status,
-    priority: normalizedPriority(record),
+    priority: normalizedPriority({ ...record, complaint_type: classification.type }),
     team: String(record.team || record.assigned_team || ""),
     notes: String(record.notes || ""),
     lat: latitude,
     lng: longitude
   };
+}
+
+function importRecordProblems(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) return ["record is not an object"];
+  const problems = [];
+  const sourceId = String(record.source_id || record.id || "").trim();
+  const address = String(record.address || "").trim();
+  const reportedAt = record.reported_at || record.reportedAt;
+  const latitude = Number(record.latitude ?? record.lat);
+  const longitude = Number(record.longitude ?? record.lng);
+  if (!sourceId) problems.push("source_id is required");
+  if (!address) problems.push("address is required");
+  if (!reportedAt || !Number.isFinite(new Date(reportedAt).getTime())) problems.push("reported time is missing or invalid");
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) problems.push("latitude is missing or invalid");
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) problems.push("longitude is missing or invalid");
+  return problems;
 }
 
 async function importJsonFile(file) {
@@ -175,17 +531,32 @@ async function importJsonFile(file) {
     showNotice("Import failed: expected an array, or an object containing entities, records, or issues.", "error");
     return;
   }
+  const reviewedAt = new Date().toISOString();
+  const rejectedRecords = records.flatMap((record, index) => {
+    const problems = importRecordProblems(record);
+    if (!problems.length) return [];
+    return [{
+      id: crypto.randomUUID(),
+      sourceId: String(record?.source_id || record?.id || `Row ${index + 1}`),
+      reasons: problems,
+      fileName: file.name,
+      reviewedAt
+    }];
+  });
+  state.importReview ||= [];
+  state.importReview.push(...rejectedRecords);
+  state.importReview = state.importReview.slice(-100);
   const normalized = records.map(normalizeImportedIssue);
   const rejected = normalized.filter(record => !record).length;
   const valid = normalized.filter(Boolean);
   const existingIds = new Set(state.issues.map(issue => issue.id));
   const unique = valid.filter(issue => !existingIds.has(issue.id));
   state.issues.push(...unique);
-  if (unique.length) recordAudit("records_imported", file.name, `${unique.length} added; ${valid.length - unique.length} duplicates; ${rejected} invalid`);
+  if (unique.length || rejected) recordAudit("records_imported", file.name, `${unique.length} added; ${valid.length - unique.length} duplicates; ${rejected} sent to review`);
   saveState();
   renderAll();
   showNotice(
-    `Imported ${unique.length} new request${unique.length === 1 ? "" : "s"}; ${valid.length - unique.length} duplicate${valid.length - unique.length === 1 ? "" : "s"} skipped; ${rejected} invalid record${rejected === 1 ? "" : "s"} rejected.`,
+    `Imported ${unique.length} new request${unique.length === 1 ? "" : "s"}; ${valid.length - unique.length} duplicate${valid.length - unique.length === 1 ? "" : "s"} skipped; ${rejected} invalid record${rejected === 1 ? "" : "s"} sent to review.`,
     rejected ? "" : "success"
   );
 }
@@ -208,14 +579,34 @@ async function hydrateFromVerifiedSnapshot() {
       const localStatus = ["assigned", "in_progress", "resolved"].includes(existing.status)
         ? existing.status
         : issue.status;
+      const verifiedEvidence = existing.crossReferenceUrl ? {
+        type: existing.type,
+        classificationConfidence: existing.classificationConfidence,
+        classificationEvidence: existing.classificationEvidence,
+        descriptor: existing.descriptor,
+        priority: existing.priority,
+        operator: existing.operator,
+        operatorConfidence: existing.operatorConfidence,
+        operatorEvidence: existing.operatorEvidence,
+        sourceUrl: existing.sourceUrl,
+        crossReferenceUrl: existing.crossReferenceUrl,
+        crossReferenceSummary: existing.crossReferenceSummary,
+        crossReferenceStatus: existing.crossReferenceStatus,
+        crossReferenceEvidence: existing.crossReferenceEvidence,
+        accessibilityEvidence: existing.accessibilityEvidence,
+        accessibilityChallengeStatus: existing.accessibilityChallengeStatus,
+        accessibilityChallengeNote: existing.accessibilityChallengeNote
+      } : {};
       return {
         ...issue,
+        ...verifiedEvidence,
         status: localStatus,
         team: existing.team || "",
         notes: existing.notes || ""
       };
     });
     state.snapshotExportedAt = snapshot.exported_at || "";
+    state.base44SnapshotCount = normalized.length;
     saveState();
     const mode = document.getElementById("dataMode");
     mode.innerHTML = `<span></span> Base44 snapshot · ${state.issues.length}`;
@@ -225,6 +616,78 @@ async function hydrateFromVerifiedSnapshot() {
     console.warn("Verified Base44 snapshot unavailable; using local trial data.", error);
     return false;
   }
+}
+
+async function hydrateFromCityFeed() {
+  try {
+    const response = await fetch("columbus-311-current.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`City feed request failed with ${response.status}`);
+    const feed = await response.json();
+    const records = Array.isArray(feed.records) ? feed.records : [];
+    if (!records.length) throw new Error("City feed contains no records");
+    const existingById = new Map(state.issues.map(issue => [issue.id, issue]));
+    let added = 0;
+    let refreshed = 0;
+    records.forEach(record => {
+      const normalized = normalizeImportedIssue(record);
+      if (!normalized) return;
+      const sourceFields = {
+        address: normalized.address,
+        zone: normalized.zone,
+        reportedAt: normalized.reportedAt,
+        lat: normalized.lat,
+        lng: normalized.lng,
+        sourceStatus: record.source_status || "",
+        sourceStatusAt: record.source_status_at || "",
+        sourceUpdatedAt: record.source_updated_at || "",
+        sourceName: record.source_name || "City of Columbus 311 public map",
+        sourceFeedUrl: record.source_url || "https://gis.columbus.gov/coc311map/",
+        councilDistrict: record.council_district || "",
+        zip: record.zip || ""
+      };
+      const existing = existingById.get(normalized.id);
+      if (existing) {
+        Object.assign(existing, sourceFields);
+        refreshed += 1;
+        return;
+      }
+      const issue = { ...normalized, ...sourceFields };
+      state.issues.push(issue);
+      existingById.set(issue.id, issue);
+      added += 1;
+    });
+    state.cityFeedFetchedAt = feed.fetched_at || "";
+    state.cityFeedRecordCount = records.length;
+    state.importReview ||= [];
+    state.importReview = state.importReview.filter(
+      item => !String(item.id || "").startsWith("city-feed-")
+    );
+    const feedReview = Array.isArray(feed.review) ? feed.review : [];
+    feedReview.forEach((item, index) => {
+      state.importReview.push({
+        id: `city-feed-${item.source_id || index}`,
+        sourceId: item.source_id || `City feed row ${index + 1}`,
+        reasons: item.reasons || ["invalid public-feed record"],
+        fileName: "City of Columbus 311 public feed",
+        reviewedAt: feed.fetched_at || new Date().toISOString()
+      });
+    });
+    state.importReview = state.importReview.slice(-100);
+    saveState();
+    const mode = document.getElementById("dataMode");
+    mode.innerHTML = `<span></span> City 30-day feed · ${records.length}`;
+    mode.title = `${refreshed} preserved Base44 records refreshed; ${added} additional City records added read-only${feed.fetched_at ? ` · fetched ${new Date(feed.fetched_at).toLocaleString()}` : ""}`;
+    return { added, refreshed, total: state.issues.length };
+  } catch (error) {
+    console.warn("Current Columbus 311 public feed unavailable.", error);
+    return null;
+  }
+}
+
+async function hydrateOperationalSources() {
+  const snapshotLoaded = await hydrateFromVerifiedSnapshot();
+  const cityFeed = await hydrateFromCityFeed();
+  return { snapshotLoaded, cityFeed };
 }
 
 async function hydrateVehiclePositions() {
@@ -302,6 +765,25 @@ async function hydrateEvents() {
   } catch (error) {
     console.warn("External event context unavailable.", error);
     eventState = { events: [], venue: null, source: null, status: "unavailable" };
+  }
+}
+
+async function hydratePolicyBoundaries() {
+  try {
+    const response = await fetch("mobility-policy-boundaries.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`policy boundary request failed with ${response.status}`);
+    const payload = await response.json();
+    policyBoundaryState = {
+      boundaries: Array.isArray(payload.boundaries) ? payload.boundaries : [],
+      complaints: Array.isArray(payload.complaints) ? payload.complaints : [],
+      summary: payload.summary || null,
+      source: payload.source || null,
+      method: payload.method || null,
+      status: "ready"
+    };
+  } catch (error) {
+    console.warn("Published mobility-policy boundaries unavailable.", error);
+    policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "unavailable" };
   }
 }
 
@@ -475,10 +957,19 @@ function submitIntake(event) {
   const issue = {
     id: sourceId,
     type,
+    classificationConfidence: "operator-selected",
+    classificationEvidence: `Complaint type selected by ${durableSession.authenticated ? durableSession.username : `local-${currentRole}`} during intake.`,
     descriptor: document.getElementById("intakeDescriptor").value.trim() || "No source description supplied",
     address: document.getElementById("intakeAddress").value.trim(),
     zone: document.getElementById("intakeZone").value.trim(),
     operator: document.getElementById("intakeOperator").value,
+    operatorConfidence: document.getElementById("intakeOperator").value === "unknown" ? "unattributed" : "operator-selected",
+    operatorEvidence: document.getElementById("intakeOperator").value === "unknown"
+      ? "No operator was identified during intake."
+      : `Operator selected during intake; source or photo verification remains recommended.`,
+    accessibilityEvidence: "not_assessed",
+    accessibilityChallengeStatus: "no_challenge",
+    accessibilityChallengeNote: "",
     reportedAt: new Date(document.getElementById("intakeReportedAt").value).toISOString(),
     status: "received",
     priority: normalizedPriority({ type }),
@@ -504,7 +995,7 @@ function escapeHtml(value = "") {
 }
 
 function label(value = "") {
-  return value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+  return value.replace(/[_-]/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 function ageInHours(date) {
@@ -554,12 +1045,17 @@ function renderMetrics() {
   });
 }
 
-function renderZoneFilter() {
+function renderQueueFilterOptions() {
   const zoneFilter = document.getElementById("zoneFilter");
-  const selected = zoneFilter.value || "all";
+  const selectedZone = zoneFilter.value || "all";
   const zones = [...new Set(state.issues.map(issue => issue.zone))].sort();
   zoneFilter.innerHTML = `<option value="all">All zones</option>${zones.map(zone => `<option value="${escapeHtml(zone)}">${escapeHtml(zone)}</option>`).join("")}`;
-  zoneFilter.value = zones.includes(selected) ? selected : "all";
+  zoneFilter.value = zones.includes(selectedZone) ? selectedZone : "all";
+  const typeFilter = document.getElementById("typeFilter");
+  const selectedType = typeFilter.value || "all";
+  const types = [...new Set(state.issues.map(issue => issue.type))].sort();
+  typeFilter.innerHTML = `<option value="all">All complaint types</option>${types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")}`;
+  typeFilter.value = types.includes(selectedType) ? selectedType : "all";
 }
 
 function filteredIssues() {
@@ -567,12 +1063,35 @@ function filteredIssues() {
   const status = document.getElementById("statusFilter").value;
   const priority = document.getElementById("priorityFilter").value;
   const zone = document.getElementById("zoneFilter").value;
+  const dateWindow = document.getElementById("dateFilter").value;
+  const type = document.getElementById("typeFilter").value;
+  const operator = document.getElementById("operatorFilter").value;
+  const sourceAnchor = Math.max(...state.issues.map(issue => new Date(issue.reportedAt).getTime()).filter(Number.isFinite));
+  const dateCutoff = dateWindow === "all" || !Number.isFinite(sourceAnchor)
+    ? null
+    : sourceAnchor - Number(dateWindow) * 86400000;
   return state.issues
     .filter(issue => status === "all" || (status === "open" ? issue.status !== "resolved" : issue.status === status))
     .filter(issue => priority === "all" || issue.priority === priority)
     .filter(issue => zone === "all" || issue.zone === zone)
-    .filter(issue => !search || [issue.id, issue.address, issue.zone, issue.type].some(value => value.toLowerCase().includes(search)))
+    .filter(issue => type === "all" || issue.type === type)
+    .filter(issue => operator === "all" || issue.operator === operator)
+    .filter(issue => dateCutoff === null || new Date(issue.reportedAt).getTime() >= dateCutoff)
+    .filter(issue => !search || [issue.id, issue.address, issue.zone, issue.type, issue.operator].some(value => value.toLowerCase().includes(search)))
     .toSorted((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || new Date(b.reportedAt) - new Date(a.reportedAt));
+}
+
+function renderImportReview() {
+  const panel = document.getElementById("importReviewPanel");
+  const list = document.getElementById("importReviewList");
+  const items = state.importReview || [];
+  panel.hidden = !items.length;
+  list.innerHTML = items.map(item => `
+    <div class="import-review-item">
+      <strong>${escapeHtml(item.sourceId)}</strong>
+      <span>${escapeHtml(item.reasons.join("; "))} · ${escapeHtml(item.fileName)}</span>
+    </div>`).join("");
+  document.getElementById("clearImportReview").disabled = !roleAllows("operator");
 }
 
 function renderQueue() {
@@ -604,6 +1123,56 @@ function renderQueue() {
   });
 }
 
+function validOneViewRequestUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:"
+      && url.hostname === "columbusoh.oneviewcrm.cc"
+      && /^\/servicerequests\/[0-9a-f-]{36}\/?$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function containsContactDetails(value) {
+  return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/i.test(value);
+}
+
+function crossReferenceEvidenceText(operator, confidence) {
+  if (operator === "unknown") return "The public OneView detail did not establish a single vendor.";
+  const method = {
+    "photo-confirmed": "request photographs",
+    "text-confirmed": "the public request narrative",
+    "photo-and-text-confirmed": "both the public narrative and request photographs"
+  }[confidence] || "the reviewed public request";
+  return `Administrator verified ${operator} using ${method}.`;
+}
+
+function requestHistory(issue) {
+  const auditEntries = (state.auditLog || [])
+    .filter(entry => entry.target === issue.id || String(entry.detail || "").includes(issue.id))
+    .toSorted((a, b) => new Date(b.at) - new Date(a.at))
+    .slice(0, 8);
+  const entries = auditEntries.map(entry => `
+    <li>
+      <time datetime="${escapeHtml(entry.at)}">${new Date(entry.at).toLocaleString()}</time>
+      <strong>${escapeHtml(label(entry.action))}</strong>
+      <span>${escapeHtml(entry.actor || "system")} · ${escapeHtml(entry.detail || "No additional detail")}</span>
+    </li>`).join("");
+  return `
+    <section class="request-history" aria-label="Request history">
+      <p class="eyebrow">Request history</p>
+      <ol>
+        ${entries}
+        <li>
+          <time datetime="${escapeHtml(issue.reportedAt)}">${new Date(issue.reportedAt).toLocaleString()}</time>
+          <strong>Source record received</strong>
+          <span>${escapeHtml(issue.id)} · preserved source timestamp</span>
+        </li>
+      </ol>
+    </section>`;
+}
+
 function renderDetail() {
   const issue = state.issues.find(item => item.id === selectedIssueId);
   const panel = document.getElementById("detailPanel");
@@ -616,6 +1185,15 @@ function renderDetail() {
       </div>`;
     return;
   }
+  const canEditEvidence = roleAllows("admin");
+  const canChallenge = roleAllows("operator");
+  const lookupUrl = "https://columbusoh.oneviewcrm.cc/servicerequests/nearby";
+  const challengeStatuses = roleAllows("admin")
+    ? ["no_challenge", "review_requested", "submitted_to_city", "city_reviewing", "city_supported", "city_not_supported"]
+    : ["no_challenge", "review_requested", "submitted_to_city"];
+  if (issue.accessibilityChallengeStatus && !challengeStatuses.includes(issue.accessibilityChallengeStatus)) {
+    challengeStatuses.push(issue.accessibilityChallengeStatus);
+  }
   panel.innerHTML = `
     <p class="eyebrow">${escapeHtml(issue.id)}</p>
     <h3>${escapeHtml(issue.type)}</h3>
@@ -623,12 +1201,77 @@ function renderDetail() {
     <span class="badge badge-${issue.priority}">${label(issue.priority)}</span>
     <dl class="evidence">
       <div><dt>Source evidence</dt><dd>${escapeHtml(issue.descriptor)}</dd></div>
+      ${issue.sourceStatus ? `<div><dt>City source status</dt><dd>${escapeHtml(issue.sourceStatus)} · read-only public feed${issue.sourceUpdatedAt ? ` · updated ${new Date(issue.sourceUpdatedAt).toLocaleString()}` : ""}</dd></div>` : ""}
+      ${issue.crossReferenceStatus ? `<div><dt>OneView status</dt><dd>${escapeHtml(label(issue.crossReferenceStatus))} · read-only cross-reference</dd></div>` : ""}
+      ${issue.crossReferenceEvidence ? `<div><dt>Cross-reference evidence</dt><dd>${escapeHtml(issue.crossReferenceEvidence)}</dd></div>` : ""}
+      ${/ADA/i.test(issue.type) || issue.accessibilityEvidence !== "not_assessed" ? `<div><dt>Accessibility evidence</dt><dd>${escapeHtml(label(issue.accessibilityEvidence || "not_assessed"))}</dd></div>` : ""}
+      ${/ADA/i.test(issue.type) || issue.accessibilityChallengeStatus !== "no_challenge" ? `<div><dt>Challenge status</dt><dd>${escapeHtml(label(issue.accessibilityChallengeStatus || "no_challenge"))}${issue.accessibilityChallengeStatus && issue.accessibilityChallengeStatus !== "no_challenge" ? " · no waiver implied" : ""}</dd></div>` : ""}
       <div><dt>Reported</dt><dd>${new Date(issue.reportedAt).toLocaleString()}</dd></div>
+      <div><dt>Classification</dt><dd>${escapeHtml(label(issue.classificationConfidence || "trial fixture"))}</dd></div>
+      <div><dt>Classification evidence</dt><dd>${escapeHtml(issue.classificationEvidence || "Local trial fixture; no automated classification claim.")}</dd></div>
       <div><dt>Operator</dt><dd>${escapeHtml(issue.operator)}</dd></div>
       <div><dt>Attribution</dt><dd>${escapeHtml(label(issue.operatorConfidence || "unattributed"))}</dd></div>
+      <div><dt>Attribution evidence</dt><dd>${escapeHtml(issue.operatorEvidence || "No operator evidence is available.")}</dd></div>
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
+      ${issue.councilDistrict ? `<div><dt>Council district</dt><dd>${escapeHtml(issue.councilDistrict)}</dd></div>` : ""}
     </dl>
-    ${issue.operatorEvidence ? `<div class="operator-evidence"><strong>Photo evidence</strong><p>${escapeHtml(issue.operatorEvidence)}</p>${issue.sourceUrl ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open official request and photographs</a>` : ""}</div>` : ""}
+    <div class="operator-evidence">
+      <strong>OneView lookup</strong>
+      <p>Search the public system near <b>${escapeHtml(issue.address)}</b>, match request ID <b>${escapeHtml(issue.id)}</b>, then record only operational evidence—never resident names or contact details.</p>
+      ${issue.sourceUrl
+        ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open matched OneView request and photographs</a>`
+        : `<a href="${lookupUrl}" target="_blank" rel="noreferrer">Search nearby requests in OneView</a>`}
+    </div>
+    <form class="detail-form evidence-review-form" id="evidenceReviewForm">
+      <p class="eyebrow">Administrator evidence review</p>
+      <label>Matched OneView request URL
+        <input id="crossReferenceUrlInput" type="url" value="${escapeHtml(issue.crossReferenceUrl || "")}" placeholder="https://columbusoh.oneviewcrm.cc/servicerequests/…" ${canEditEvidence ? "" : "disabled"}>
+      </label>
+      <label>Privacy-safe operational summary
+        <textarea id="crossReferenceSummaryInput" maxlength="600" placeholder="Describe the obstruction and location. Omit resident names, email addresses, phone numbers, and correspondence details." ${canEditEvidence ? "" : "disabled"}>${escapeHtml(issue.crossReferenceSummary || "")}</textarea>
+      </label>
+      <div class="evidence-review-grid">
+        <label>Public OneView status
+          <select id="crossReferenceStatusInput" ${canEditEvidence ? "" : "disabled"}>
+            ${["", "assigned", "concluded", "closed", "comments_tracked_close"].map(status => `<option value="${status}" ${status === (issue.crossReferenceStatus || "") ? "selected" : ""}>${status ? label(status) : "Not recorded"}</option>`).join("")}
+          </select>
+        </label>
+        <label>Operator
+          <select id="crossReferenceOperatorInput" ${canEditEvidence ? "" : "disabled"}>
+            ${["unknown", "Spin", "Veo"].map(operator => `<option value="${operator}" ${operator === issue.operator ? "selected" : ""}>${label(operator)}</option>`).join("")}
+          </select>
+        </label>
+        <label>Verification
+          <select id="crossReferenceConfidenceInput" ${canEditEvidence ? "" : "disabled"}>
+            ${["unattributed", "photo-confirmed", "text-confirmed", "photo-and-text-confirmed"].map(confidence => `<option value="${confidence}" ${confidence === (issue.operatorConfidence || "unattributed") ? "selected" : ""}>${label(confidence)}</option>`).join("")}
+          </select>
+        </label>
+        <label>Accessibility finding
+          <select id="accessibilityEvidenceInput" ${canEditEvidence ? "" : "disabled"}>
+            ${["not_assessed", "no_photo", "photo_inconclusive", "photo_not_supporting", "photo_supporting"].map(finding => `<option value="${finding}" ${finding === (issue.accessibilityEvidence || "not_assessed") ? "selected" : ""}>${label(finding)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <p class="evidence-boundary">An ADA checkbox or narrative is a resident-reported concern. Only “photo supporting” is treated as visually confirmed; other findings remain challengeable evidence states.</p>
+      <p class="form-error" id="evidenceReviewError"></p>
+      <button class="secondary-button" type="submit" ${canEditEvidence ? "" : "disabled"}>Save verified evidence</button>
+    </form>
+    ${requestHistory(issue)}
+    ${/ADA/i.test(issue.type) || issue.accessibilityEvidence !== "not_assessed" ? `
+      <form class="detail-form challenge-form" id="accessibilityChallengeForm">
+        <p class="eyebrow">Accessibility review / challenge</p>
+        <p class="evidence-boundary">A challenge records an evidence dispute for City review. It does not dismiss the request, change its lifecycle, pause an SLA calculation, or imply that the City will waive the request or agree with the operator.</p>
+        <label>Review status
+          <select id="accessibilityChallengeStatusInput" ${canChallenge ? "" : "disabled"}>
+            ${challengeStatuses.map(status => `<option value="${status}" ${status === (issue.accessibilityChallengeStatus || "no_challenge") ? "selected" : ""}>${label(status)}</option>`).join("")}
+          </select>
+        </label>
+        <label>Evidence note
+          <textarea id="accessibilityChallengeNoteInput" maxlength="600" placeholder="State what the photograph does or does not establish; omit resident identity and contact details." ${canChallenge ? "" : "disabled"}>${escapeHtml(issue.accessibilityChallengeNote || "")}</textarea>
+        </label>
+        <p class="form-error" id="accessibilityChallengeError"></p>
+        <button class="secondary-button" type="submit" ${canChallenge ? "" : "disabled"}>Save review status</button>
+      </form>` : ""}
     <form class="detail-form" id="issueUpdateForm">
       <label>Assigned team
         <select id="teamInput">${teams.map(team => `<option value="${escapeHtml(team)}" ${team === issue.team ? "selected" : ""}>${team || "Unassigned"}</option>`).join("")}</select>
@@ -643,6 +1286,77 @@ function renderDetail() {
       </label>
       <button class="primary-button" type="submit">Save update</button>
     </form>`;
+  document.getElementById("evidenceReviewForm").addEventListener("submit", event => {
+    event.preventDefault();
+    if (!requireRole("admin", "record verified source evidence")) return;
+    const error = document.getElementById("evidenceReviewError");
+    const url = document.getElementById("crossReferenceUrlInput").value.trim();
+    const summary = document.getElementById("crossReferenceSummaryInput").value.trim();
+    const officialStatus = document.getElementById("crossReferenceStatusInput").value;
+    const operator = document.getElementById("crossReferenceOperatorInput").value;
+    const confidence = document.getElementById("crossReferenceConfidenceInput").value;
+    const accessibilityEvidence = document.getElementById("accessibilityEvidenceInput").value;
+    if (!validOneViewRequestUrl(url)) {
+      error.textContent = "Enter the exact public OneView request URL, not the nearby-search page.";
+      return;
+    }
+    if (summary.length < 12) {
+      error.textContent = "Add a concise operational summary before saving evidence.";
+      return;
+    }
+    if (containsContactDetails(summary)) {
+      error.textContent = "Remove email addresses and telephone numbers from the operational summary.";
+      return;
+    }
+    if (operator !== "unknown" && confidence === "unattributed") {
+      error.textContent = "Choose how the named operator was verified.";
+      return;
+    }
+    const classification = classifyComplaint({ description: summary, complaint_type: issue.type }, accessibilityEvidence);
+    issue.descriptor = summary;
+    issue.crossReferenceSummary = summary;
+    issue.crossReferenceUrl = url;
+    issue.sourceUrl = url;
+    issue.crossReferenceStatus = officialStatus;
+    issue.crossReferenceEvidence = "Administrator-verified public OneView detail; the saved summary excludes personal contact information.";
+    issue.accessibilityEvidence = accessibilityEvidence;
+    issue.type = classification.type;
+    issue.classificationConfidence = classification.confidence;
+    issue.classificationEvidence = classification.evidence;
+    issue.priority = normalizedPriority({ priority: "", complaint_type: classification.type });
+    issue.operator = operator;
+    issue.operatorConfidence = operator === "unknown" ? "unattributed" : confidence;
+    issue.operatorEvidence = crossReferenceEvidenceText(operator, issue.operatorConfidence);
+    recordAudit("cross_reference_verified", issue.id, `OneView evidence recorded; ${issue.type}; ${operator}`);
+    saveState();
+    renderAll();
+    showNotice(`${issue.id} OneView evidence saved without changing its local lifecycle status.`, "success");
+  });
+  document.getElementById("accessibilityChallengeForm")?.addEventListener("submit", event => {
+    event.preventDefault();
+    if (!requireRole("operator", "record an accessibility evidence challenge")) return;
+    const error = document.getElementById("accessibilityChallengeError");
+    const challengeStatus = document.getElementById("accessibilityChallengeStatusInput").value;
+    const challengeNote = document.getElementById("accessibilityChallengeNoteInput").value.trim();
+    if (!roleAllows("admin") && ["city_reviewing", "city_supported", "city_not_supported"].includes(challengeStatus)) {
+      error.textContent = "Only an Administrator can record a City review finding.";
+      return;
+    }
+    if (challengeStatus !== "no_challenge" && challengeNote.length < 12) {
+      error.textContent = "Add a concise evidence note for the review record.";
+      return;
+    }
+    if (containsContactDetails(challengeNote)) {
+      error.textContent = "Remove email addresses and telephone numbers from the evidence note.";
+      return;
+    }
+    issue.accessibilityChallengeStatus = challengeStatus;
+    issue.accessibilityChallengeNote = challengeNote;
+    recordAudit("accessibility_review_updated", issue.id, `${label(challengeStatus)}; evidence note ${challengeNote ? "recorded" : "cleared"}; no waiver or lifecycle change implied`);
+    saveState();
+    renderAll();
+    showNotice(`${issue.id} review status saved. No waiver, dismissal, SLA pause, or lifecycle change is implied.`, "success");
+  });
   document.getElementById("issueUpdateForm").addEventListener("submit", event => {
     event.preventDefault();
     if (!requireRole("operator", "update a request")) return;
@@ -763,6 +1477,33 @@ function generateHotspotRecommendation(zone) {
 
 function renderHotspots() {
   const data = hotspots();
+  const policyPanel = document.getElementById("policyBoundaryAnalysis");
+  if (policyPanel) {
+    if (policyBoundaryState.status === "ready" && policyBoundaryState.summary) {
+      const summary = policyBoundaryState.summary;
+      const closest = policyBoundaryState.complaints
+        .filter(item => item.nearest_boundary_distance_m <= 25)
+        .slice(0, 6);
+      policyPanel.innerHTML = `
+        <div class="brief-heading">
+          <div>
+            <p class="eyebrow">Published MDS policy context</p>
+            <h3>311 proximity to no-park and no-ride boundaries</h3>
+          </div>
+          <a href="${escapeHtml(policyBoundaryState.source?.policy_url || "#")}" target="_blank" rel="noreferrer">Open public policy map</a>
+        </div>
+        <div class="policy-metrics">
+          <p><strong>${summary.within_boundary_m["25"]}</strong><span>of ${summary.source_complaint_count} within 25 m</span></p>
+          <p><strong>${summary.within_boundary_m["50"]}</strong><span>within 50 m</span></p>
+          <p><strong>${summary.within_boundary_m["100"]}</strong><span>within 100 m</span></p>
+          <p><strong>${summary.inside_policy_zone_count}</strong><span>inside a published zone</span></p>
+        </div>
+        <p>${summary.boundary_policy_count} published no-parking, mandatory-parking, or no-ride policies contribute ${summary.boundary_feature_count} mapped features. The closest records include ${closest.map(item => `${escapeHtml(item.source_id)} · ${escapeHtml(item.nearest_policy_name)} · ${item.nearest_boundary_distance_m.toFixed(1)} m`).join("; ")}.</p>
+        <p class="threshold-note"><strong>Interpretation boundary:</strong> proximity is a review signal, not evidence that a geofence caused the complaint or was active at report time. A matched control set of ordinary street locations is still required before claiming complaints are disproportionately concentrated near policy edges.</p>`;
+    } else {
+      policyPanel.innerHTML = `<p class="threshold-note">Published mobility-policy boundaries are unavailable in this build.</p>`;
+    }
+  }
   const reportingWatch = reportingPatternWatch();
   const reportingWatchCard = reportingWatch.issues.length ? `
     <article class="hotspot-item named-watch reporting-watch">
@@ -784,12 +1525,14 @@ function renderHotspots() {
       <p><strong>Evidence:</strong> ${fourthStreetIssues.map(issue => `${escapeHtml(issue.id)} · ${escapeHtml(issue.address)}`).join("; ")}</p>
     </article>` : "";
   const eventAnalysis = watchEventAnalysis();
-  const latestEventContext = eventAnalysis.latest?.eventContext;
+  const latestLinkedObservation = eventAnalysis.eventLinked.at(-1);
+  const latestEventContext = latestLinkedObservation?.eventContext;
   const eventWatchCard = latestEventContext ? `
     <article class="hotspot-item named-watch event-watch">
-      <span class="badge badge-high">Event-window observation</span>
+      <span class="badge badge-high">Historical event-window observation</span>
       <h3>Goodale and Olentangy after ${escapeHtml(latestEventContext.event.name)}</h3>
-      <p>The ${new Date(eventAnalysis.latest.observedAt).toLocaleString()} GBFS snapshot was captured ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after the estimated match end and contains ${eventAnalysis.latest.watch_count} vehicles within 250 metres of the named watch.</p>
+      <p>The ${new Date(latestLinkedObservation.observedAt).toLocaleString()} GBFS snapshot was captured ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after the estimated match end and contains ${latestLinkedObservation.watch_count} vehicles within 250 metres of the named watch.</p>
+      <p>The newer ${new Date(eventAnalysis.latest.observedAt).toLocaleString()} observation contains ${eventAnalysis.latest.watch_count} vehicle${eventAnalysis.latest.watch_count === 1 ? "" : "s"} and ${eventAnalysis.latest.cross_vendor ? "still has" : "does not have"} a cross-vendor condition. This updates the current state without erasing the earlier observation.</p>
       <p>${eventAnalysis.eventLinked.length} of ${eventAnalysis.observations.length} observations fall within a defined event window. Event-window median: ${eventAnalysis.eventMedian ?? "—"}; non-event median: ${eventAnalysis.baselineMedian ?? "—"}. One event-linked observation is insufficient to establish recurrence or causation.</p>
       <p><strong>Join rule:</strong> four hours pre-event; official kickoff through an estimated 2h15 end; 0–2 hours immediate post-event; 2–6 hours recovery; 6–16 hours next morning.</p>
       <p><a href="${escapeHtml(eventState.source?.url || "#")}" target="_blank" rel="noreferrer">Official Columbus Crew schedule source</a> · expected end times are analytical estimates.</p>
@@ -914,43 +1657,48 @@ function renderCompliance() {
     {
       id: "IP1",
       name: "ADA obstruction response",
-      threshold: "90%+ resolved within 1 hour",
-      detail: "For reports received 8 a.m.–10 p.m.; otherwise by 8 a.m. the next day. Assessed as a 30-day average.",
+      threshold: "Monthly eligible average ≤ 60 minutes",
+      detail: "Resolve every request as quickly as possible: a slower observation can be offset in the monthly mean by faster eligible resolutions. Individual durations are not contractual pass/fail verdicts.",
       match: issue => /ada|curb ramp|wheelchair/i.test(`${issue.type} ${issue.descriptor}`)
     },
     {
       id: "IP2",
       name: "Travel or bike-lane obstruction",
-      threshold: "90%+ resolved within 3 hours",
-      detail: "For reports received 8 a.m.–10 p.m.; otherwise by 8 a.m. the next day. Assessed as a 30-day average.",
+      threshold: "Monthly eligible average ≤ 180 minutes",
+      detail: "Calculated from the eligible vendor population for the assessment month; one observation above three hours does not by itself determine the monthly result.",
       match: issue => /bike lane|travel lane/i.test(`${issue.type} ${issue.descriptor}`)
     },
     {
       id: "IP3",
       name: "Other parking issue",
-      threshold: "90%+ removed within 24 hours",
-      detail: "Assessed as a 30-day average.",
+      threshold: "Monthly eligible average ≤ 1,440 minutes",
+      detail: "Calculated as the mean resolution duration for eligible requests in the assessment month, not as independent request-level passes and failures.",
       match: issue => !/ada|curb ramp|wheelchair|bike lane|travel lane/i.test(`${issue.type} ${issue.descriptor}`)
     }
   ];
   const evidence = slaEvidenceState.records;
   const adaEvidence = evidence.filter(record => record.ada);
-  const adaPassed = adaEvidence.filter(record => record.result === "passed").length;
-  const adaFailed = adaEvidence.filter(record => record.result === "failed").length;
+  const averageMinutes = records => records.length
+    ? Math.round(records.reduce((sum, record) => sum + record.duration_minutes, 0) / records.length)
+    : null;
+  const formatMinutes = minutes => minutes === null
+    ? "—"
+    : minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  const adaAverage = averageMinutes(adaEvidence);
   const goodale = evidence.filter(record => /GOODALE/i.test(record.location));
   const broad = evidence.filter(record => /W BROAD/i.test(record.location));
   document.getElementById("slaEvidenceSummary").innerHTML = evidence.length ? `
     <article>
-      <p class="eyebrow">Provisional request-level evidence</p>
+      <p class="eyebrow">Provisional duration observations</p>
       <h3>${evidence.length} cases transcribed from the supplied screenshot</h3>
       <div class="evidence-metrics">
-        <div><strong>${adaEvidence.length}</strong><span>ADA flagged</span></div>
-        <div><strong>${adaPassed}</strong><span>ADA within target</span></div>
-        <div><strong>${adaFailed}</strong><span>ADA over one hour</span></div>
-        <div><strong>${adaEvidence.length ? Math.round(adaPassed / adaEvidence.length * 100) : 0}%</strong><span>request-level ADA pass rate</span></div>
+        <div><strong>${adaEvidence.length}</strong><span>user-flagged ADA observations</span></div>
+        <div><strong>${formatMinutes(adaAverage)}</strong><span>unverified sample mean</span></div>
+        <div><strong>${formatMinutes(adaEvidence.length ? Math.min(...adaEvidence.map(record => record.duration_minutes)) : null)}</strong><span>fastest observation</span></div>
+        <div><strong>${formatMinutes(adaEvidence.length ? Math.max(...adaEvidence.map(record => record.duration_minutes)) : null)}</strong><span>slowest observation</span></div>
       </div>
-      <p>Goodale: ${goodale.length} cases, ${goodale.filter(record => record.result === "failed").length} failed. W Broad: ${broad.length} cases, ${broad.filter(record => record.result === "failed").length} failed. These rows lack dates and vendors, so they cannot establish a monthly vendor SLA result.</p>
-      <p class="provisional-label">Provisional transcription—verify against the original spreadsheet before enforcement use.</p>
+      <p>Goodale: ${goodale.length} observations, mean ${formatMinutes(averageMinutes(goodale))}. W Broad: ${broad.length} observations, mean ${formatMinutes(averageMinutes(broad))}. These rows lack dates, vendor identity, eligibility decisions, and visual ADA validation, so none of these means establishes a monthly vendor SLA result.</p>
+      <p class="provisional-label">The screenshot's row labels are source annotations, not contractual request-level verdicts. Verify the eligible monthly population before enforcement use.</p>
     </article>` : `<div class="empty-card">No request-level SLA evidence has been loaded.</div>`;
   document.getElementById("slaGrid").innerHTML = standards.map(standard => {
     const candidates = state.issues.filter(standard.match);
@@ -966,7 +1714,7 @@ function renderCompliance() {
         <div><dt>Operator attributed</dt><dd>${attributable.length}</dd></div>
         <div><dt>Assessable now</dt><dd>0</dd></div>
       </dl>
-      <p class="sla-gap">Missing vendor response/removal timestamps and record-level SLA inclusion decisions.</p>
+      <p class="sla-gap">Missing assessment month, vendor identity, eligible-request population, and verified resolution durations needed for the monthly average.</p>
     </article>`;
   }).join("");
 }
@@ -989,6 +1737,25 @@ function renderOutcomes() {
 }
 
 function renderActivity() {
+  const workflowList = document.getElementById("workflowRunList");
+  const runButton = document.getElementById("runWorkflows");
+  runButton.disabled = !durableSession.authenticated || !roleAllows("admin");
+  const recentRuns = workflowState.runs.slice(0, 6);
+  workflowList.innerHTML = durableSession.authenticated ? `
+    <p class="section-note">${workflowState.enabled
+      ? `Scheduler enabled · every ${workflowState.intervalSeconds} seconds · City 311 sync ${workflowState.citySyncEnabled ? "enabled" : "disabled"} · ${workflowState.deliveryCount} deduplicated delivery states stored`
+      : `Scheduler disabled · City 311 sync ${workflowState.citySyncEnabled ? "enabled for manual runs" : "disabled"} · ${workflowState.deliveryCount} deduplicated delivery states stored · Administrator may run a local verification manually`}</p>
+    <div class="workflow-run-grid">${recentRuns.length ? recentRuns.map(run => `
+      <article class="workflow-run">
+        <span class="badge badge-${run.status === "success" ? "completed" : run.status === "failed" ? "critical" : "standard"}">${escapeHtml(label(run.status))}</span>
+        <h4>${escapeHtml(label(run.workflow))}</h4>
+        <p>${new Date(run.completed_at).toLocaleString()} · ${escapeHtml(run.trigger)}</p>
+        <p>${run.workflow === "daily_brief"
+          ? `${run.output.new_request_count ?? 0} new · ${run.output.unresolved_critical_count ?? 0} critical · ${run.output.dispatched_intervention_count ?? 0} dispatched`
+          : run.workflow === "city_311_sync"
+            ? `${run.output.source_records ?? 0} source records · ${run.output.added ?? 0} added · ${run.output.updated ?? 0} refreshed · ${run.output.invalid ?? 0} invalid`
+            : `${run.output.new_delivery_count ?? 0} new delivery states · ${run.output.deduplicated_state_count ?? 0} unchanged states suppressed`}</p>
+      </article>`).join("") : `<div class="empty-card">No workflow runs recorded yet.</div>`}</div>` : "";
   const ledger = document.getElementById("activityLedger");
   const entries = (state.auditLog || []).toReversed();
   ledger.innerHTML = entries.length ? entries.map(entry => `
@@ -1138,7 +1905,30 @@ function renderOperationalMap() {
   const showVehicles = document.getElementById("mapVehiclesToggle").checked;
   const showFlags = document.getElementById("mapFlagsToggle").checked;
   const showWatches = document.getElementById("mapWatchesToggle").checked;
+  const showPolicies = document.getElementById("mapPoliciesToggle").checked;
   const bounds = [];
+  if (showPolicies && policyBoundaryState.status === "ready") {
+    policyBoundaryState.boundaries.forEach(boundary => {
+      const color = boundary.boundary_type === "no_ride" ? "#7a4b76"
+        : boundary.boundary_type === "mandatory_parking" ? "#355f79"
+          : "#956b1d";
+      L.geoJSON(
+        { type: "Feature", properties: {}, geometry: boundary.geometry },
+        {
+          style: {
+            color,
+            weight: 1.4,
+            opacity: 0.72,
+            fillColor: color,
+            fillOpacity: 0.05,
+            dashArray: boundary.boundary_type === "no_ride" ? "5 4" : null
+          }
+        }
+      ).bindPopup(
+        `<strong>${escapeHtml(boundary.policy_name)}</strong><br>${escapeHtml(label(boundary.boundary_type))}<br>${escapeHtml(boundary.description)}<br>Published policy context; not proof of a violation.`
+      ).addTo(operationalMapLayers);
+    });
+  }
   complaints.forEach(issue => {
     const point = [issue.lat, issue.lng];
     bounds.push(point);
@@ -1197,7 +1987,7 @@ function renderOperationalMap() {
     });
   }
   document.getElementById("mapResultCount").textContent =
-    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}`;
+    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}${showPolicies && policyBoundaryState.status === "ready" ? ` · ${policyBoundaryState.summary.boundary_feature_count} policy features` : ""}`;
   if (!operationalMapHasFit && bounds.length) {
     operationalMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
     operationalMapHasFit = true;
@@ -1285,11 +2075,13 @@ function renderPileups() {
       const eventContext = eventContextForTime(snapshotIdToDate(item.snapshot_id));
       return `<span class="${eventContext ? "event-linked-bar" : ""}" style="height:${height}px" title="${escapeHtml(item.snapshot_id)} · ${item.watch_count} vehicles${eventContext ? ` · ${escapeHtml(label(eventContext.window))}` : ""}"></span>`;
     }).join("");
-    const latestEventContext = eventAnalysis.latest?.eventContext;
+    const latestLinkedObservation = eventAnalysis.eventLinked.at(-1);
+    const latestEventContext = latestLinkedObservation?.eventContext;
     const eventSummary = latestEventContext ? `
       <div class="event-context">
-        <strong>${escapeHtml(label(latestEventContext.window))}</strong>
-        <p>${escapeHtml(latestEventContext.event.name)} · snapshot ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after estimated end.</p>
+        <strong>Historical ${escapeHtml(label(latestEventContext.window))}</strong>
+        <p>${escapeHtml(latestEventContext.event.name)} · ${latestLinkedObservation.watch_count} vehicles in the event-linked snapshot, captured ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after estimated end.</p>
+        <p>The latest observation is outside the event window and has ${eventAnalysis.latest.watch_count} vehicle${eventAnalysis.latest.watch_count === 1 ? "" : "s"}; ${eventAnalysis.latest.cross_vendor ? "a cross-vendor condition remains" : "the earlier cross-vendor condition is not present"}.</p>
         <p>${eventAnalysis.eventLinked.length} event-window observation${eventAnalysis.eventLinked.length === 1 ? "" : "s"}; event median ${eventAnalysis.eventMedian ?? "—"} vs. non-event median ${eventAnalysis.baselineMedian ?? "—"}. Association only; more match and non-match observations are required.</p>
         <a href="${escapeHtml(eventState.source?.url || "#")}" target="_blank" rel="noreferrer">Official schedule</a>
       </div>` : `<p>No loaded observation falls inside a verified event window.</p>`;
@@ -1297,7 +2089,7 @@ function renderPileups() {
       <span class="badge badge-${crossVendor && nearby.length >= 4 ? "high" : "standard"}">Named watch</span>
       <h3>${escapeHtml(location.name)}</h3>
       <p>${escapeHtml(location.context)}</p>
-      <p><strong>${nearby.length} vehicles within ${location.radius} m</strong>${counts.length ? ` · ${counts.map(([company, count]) => `${escapeHtml(company)} ${count}`).join(" · ")}` : ""}</p>
+      <p><strong>${nearby.length} vehicle${nearby.length === 1 ? "" : "s"} within ${location.radius} m</strong>${counts.length ? ` · ${counts.map(([company, count]) => `${escapeHtml(company)} ${count}`).join(" · ")}` : ""}</p>
       <p>${crossVendor ? "Cross-vendor presence in this snapshot; review against match end time." : "No cross-vendor condition in this snapshot."}</p>
       <p>${escapeHtml(location.comparison)}</p>
       ${eventSummary}
@@ -1595,8 +2387,9 @@ function submitSubscription(event) {
 function renderAll() {
   reconcileAlertDeliveries();
   renderMetrics();
-  renderZoneFilter();
+  renderQueueFilterOptions();
   renderQueue();
+  renderImportReview();
   renderDetail();
   renderHotspots();
   renderInterventions();
@@ -1631,6 +2424,7 @@ document.getElementById("filters").addEventListener("input", renderQueue);
 document.getElementById("filters").addEventListener("change", renderQueue);
 document.getElementById("roleSelect").value = currentRole;
 document.getElementById("roleSelect").addEventListener("change", event => {
+  if (durableSession.authenticated) return;
   currentRole = event.target.value;
   localStorage.setItem(ROLE_KEY, currentRole);
   showNotice(`Trial role changed to ${label(currentRole)}. This is a local interface control, not production authentication.`);
@@ -1651,15 +2445,42 @@ document.getElementById("openIntake").addEventListener("click", openIntakeDialog
 document.getElementById("closeIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("cancelIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("intakeForm").addEventListener("submit", submitIntake);
+document.getElementById("authButton").addEventListener("click", async () => {
+  if (durableSession.authenticated) {
+    try {
+      await signOutDurableMode();
+    } catch (error) {
+      showNotice(`Sign out failed: ${error.message}`, "error");
+    }
+    return;
+  }
+  document.getElementById("authError").textContent = "";
+  document.getElementById("authDialog").showModal();
+  document.getElementById("authUsername").focus();
+});
+document.getElementById("closeAuth").addEventListener("click", () => document.getElementById("authDialog").close());
+document.getElementById("cancelAuth").addEventListener("click", () => document.getElementById("authDialog").close());
+document.getElementById("authForm").addEventListener("submit", submitAuth);
+document.getElementById("runWorkflows").addEventListener("click", runServerWorkflows);
 document.getElementById("subscriptionForm").addEventListener("submit", submitSubscription);
 document.getElementById("importFile").addEventListener("change", event => {
   const [file] = event.target.files;
   if (file) importJsonFile(file);
   event.target.value = "";
 });
+document.getElementById("clearImportReview").addEventListener("click", () => {
+  if (!requireRole("operator", "clear reviewed import errors")) return;
+  const count = (state.importReview || []).length;
+  if (!count || !window.confirm(`Clear ${count} reviewed import item${count === 1 ? "" : "s"}? This does not change any operational request.`)) return;
+  state.importReview = [];
+  recordAudit("import_review_cleared", "import review", `${count} reviewed item${count === 1 ? "" : "s"} cleared after confirmation`);
+  saveState();
+  renderAll();
+});
 document.getElementById("exportData").addEventListener("click", exportTrialData);
 document.getElementById("resetDemo").addEventListener("click", async () => {
   if (!requireRole("admin", "reset local edits")) return;
+  if (!window.confirm("Reset browser-local assignments, statuses, subscriptions, interventions, and outcomes? The verified source snapshot and activity ledger will be preserved.")) return;
   const preservedAudit = [...(state.auditLog || [])];
   state = structuredClone(initialState);
   state.auditLog = preservedAudit;
@@ -1667,15 +2488,19 @@ document.getElementById("resetDemo").addEventListener("click", async () => {
   selectedIssueId = null;
   document.getElementById("filters").reset();
   localStorage.removeItem(STORAGE_KEY);
-  const restoredSnapshot = await hydrateFromVerifiedSnapshot();
+  const restoredSources = await hydrateOperationalSources();
   renderAll();
-  showNotice(restoredSnapshot ? "Local changes cleared; verified Base44 snapshot restored." : "Local trial data restored.", "success");
+  showNotice(restoredSources.snapshotLoaded ? "Local changes cleared; verified source records restored." : "Local trial data restored.", "success");
 });
 
 Promise.all([
-  hydrateFromVerifiedSnapshot(),
+  hydrateOperationalSources(),
   hydrateVehiclePositions(),
   hydrateSlaEvidence(),
   hydrateHistorical311(),
-  hydrateEvents()
-]).finally(renderAll);
+  hydrateEvents(),
+  hydratePolicyBoundaries()
+]).then(initializeDurableMode).finally(() => {
+  renderDurableMode();
+  renderAll();
+});
