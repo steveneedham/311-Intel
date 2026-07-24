@@ -1,7 +1,8 @@
 # 311 Field Intelligence — Completion Audit
 
-Audit date: 2026-07-23  
-Current artifact: local browser application in `/Users/sjneedhamicloud.com/Documents/311 Intel`
+Audit date: 2026-07-24
+Current artifacts: public PWA at `https://steveneedham.github.io/311-Intel/`
+and durable local service in `/Users/sjneedhamicloud.com/Documents/311 Intel`
 
 ## Evidence summary
 
@@ -155,15 +156,16 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   dispatched, and completed it. Completion without a note was rejected.
   `OUT-002` was then created with explicit windows and evidence. A second
   recommendation, `INT-004`, proved the skipped path and created no outcome.
-- The packaged `npm test` browser acceptance suite passed all 67 checks on
-  2026-07-23. It starts an isolated local server, uses a disposable browser
+- The packaged browser acceptance suite passed all 73 checks on
+  2026-07-24. It starts an isolated local server, uses a disposable browser
   profile and fixture, and verifies source hydration, GA4 configuration,
   complete queue filters, invalid-import review, OneView lookup and evidence
   review, contact-detail rejection, evidence-qualified ADA claims, non-waiving
   challenges, monthly-average SLA presentation, lifecycle separation,
   historical privacy boundaries, event evidence, alert deduplication, role
   restrictions, the complete intervention lifecycle, outcome windows, no
-  desktop JavaScript errors, and mobile layout containment.
+  desktop JavaScript errors, mobile layout containment, PWA metadata, install
+  icons, the civic-service demo label, and the copyright footer.
 - The GBFS refresh pipeline now discovers timestamped archive files
   automatically instead of relying on a hard-coded source path. It selected
   `20260724T010404Z` from ten unique observations, preserved all 3,592 valid
@@ -247,7 +249,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for current feed | The interface shows `City 30-day feed · 137`, preserves all 104 Base44 IDs, and recalculates counts after source hydration and local changes. Dedicated status, source-anchored date, zone, complaint-type, operator, and severity filters are exercised against loaded records. |
 | 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous reads, requires CSRF, permits Operators to assign requests, add recommendations, pause alert rules, and submit evidence challenges, but rejects source-evidence changes, City findings, intervention approval, protected-section edits, malformed intake, duplicate IDs, alert-rule deletion/retargeting, and alert-history mutation. Administrator transitions are accepted. |
 | 10 | Existing records remain present after the change. | Proven locally | Base44 was accessed read-only; all 104 exported IDs remain within the 137-record City-hydrated queue. The service merge test proves source refreshes preserve local lifecycle, team, and notes. |
-| 11 | Mobile and desktop layouts preserve operational hierarchy. | Proven locally | Headless Chromium verified the Historical Trends view at 1440×1000 and 390×844. Both layouts show the source boundary, metrics, monthly volume, channels, repeat locations, and anonymous reporting-pattern evidence; document width matches the viewport at both sizes. The horizontally scrollable mobile navigation is intentional. |
+| 11 | Mobile and desktop layouts preserve operational hierarchy. | Proven locally and deployed statically | Headless Chromium verified the interface at 1440×1000 and 390×844. Mobile requests become touch-friendly cards, navigation targets remain at least 44 pixels high, the masthead does not overflow, and the document width matches the viewport. The public HTTPS deployment exposes a standalone PWA manifest, install icons, offline shell, safe-area spacing, and the same operational hierarchy. |
 | 12 | UI text does not claim unverified functions are live. | Proven locally | The interface labels the 137-record City data as a read-only 30-day feed, distinguishes committed browser evidence from durable mode, and does not claim the optional scheduler is deployed. |
 
 ## Required-behavior coverage beyond the numbered tests
@@ -263,7 +265,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 
 | Required evidence | Current decision | Authoritative evidence |
 |---|---|---|
-| Live UI walkthrough across the full operational lifecycle | Proven in isolated local runtime; not yet proven on a deployed URL | 67-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, and outcome. The 15-check durable suite covers authenticated persistence and audit history. |
+| Live UI walkthrough across the full operational lifecycle | Static PWA is deployed; durable lifecycle remains proven only in an isolated local runtime | The 73-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, outcome, PWA behavior, and responsive layout. The 15-check durable suite covers authenticated persistence and audit history. GitHub Pages cannot host the SQLite service, so durable writes and scheduler evidence still require a container deployment. |
 | Current entity counts and representative records | Proven for the refreshed evidence bundle | Official public-feed refresh contains 137 unique requests; all 104 Base44 IDs remain present and 33 City-only records are added. |
 | Scheduled workflows active with recent successful runs | Proven in a disposable durable runtime; production deployment evidence missing | With the real scheduler and City sync enabled, the runtime recorded repeated successful `city_311_sync`, `daily_brief`, and `alert_evaluation` runs through 2026-07-24 02:08:13Z. No production host currently supplies persistent runtime records. |
 | Administrator and non-administrator permission checks | Proven locally | Browser and API tests cover Viewer, Operator, and Administrator paths, protected sections, source evidence, interventions, malformed intake, duplicate IDs, alerts, and append-only histories. |

@@ -63,16 +63,26 @@ available data proves.
   emails, telephone numbers, and free-text descriptions.
 - Local alert rules deduplicate unchanged request states.
 - GA4 property `G-V40E4MZEMV` is configured.
+- The public GitHub Pages build is an installable mobile PWA with an offline
+  application shell, touch-friendly request cards, safe-area spacing, and
+  deep links to operational views. It is clearly labeled as a demo and links
+  to the City of Columbus Mobility & Parking Services information.
 
-## What is not live
+## What is live and what is not
 
-The browser fallback loads a committed City feed snapshot. The authenticated
-service includes an optional read-only City refresh, but no production host or
-scheduled runtime has been deployed or verified. This build also does not claim
-production identity-provider integration, TLS termination, email/SMS delivery,
-or automatic vendor enforcement. OneView matching is a human-reviewed lookup,
-not an undocumented scraper or API integration. Base44 and GitHub are not
-modified by running the trial.
+The read-only browser experience is live at
+`https://steveneedham.github.io/311-Intel/`. GitHub Pages serves the responsive
+PWA, current committed evidence bundle, maps, analysis, local trial workflows,
+and offline application shell.
+
+The authenticated SQLite service includes an optional read-only City refresh,
+but no production container host or scheduled runtime has been deployed or
+verified. GitHub Pages cannot supply authenticated writes, persistent server
+storage, or scheduled jobs. This build also does not claim production
+identity-provider integration, email/SMS delivery, or automatic vendor
+enforcement. OneView matching is a human-reviewed lookup, not an undocumented
+scraper or API integration. Base44 and GitHub are not modified by running the
+trial.
 
 ## Run locally
 

@@ -7,7 +7,7 @@ Create an operational Columbus 311 issue-resolution app that turns incoming serv
 ## Current authoritative state
 
 - Base44 app: `311` (`6a614b54abec07520930dbea`)
-- GitHub repository: `steveneedham/311intel`
+- GitHub repository: `steveneedham/311-Intel`
 - The live Base44 data layer contains 104 `MicromobilityComplaint` records.
 - All 104 live complaints are classified as `sidewalk_block`.
 - All 104 live complaints have operator `unknown`.
