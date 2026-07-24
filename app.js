@@ -1646,6 +1646,7 @@ function generateHotspotRecommendation(zone) {
   )];
   const item = {
     id: nextInterventionId(),
+    interventionType: "field_response",
     zone,
     strategy: hotspot.critical
       ? "Accessibility obstruction field response"
@@ -1807,16 +1808,111 @@ function renderVendorResponses(item) {
     </section>`;
 }
 
+function toggleInterventionExperimentFields() {
+  const type = document.getElementById("interventionTypeInput").value;
+  const fields = document.getElementById("interventionExperimentFields");
+  const experiment = type === "experiment";
+  fields.hidden = !experiment;
+  fields.querySelectorAll("input, textarea").forEach(control => {
+    control.required = experiment;
+  });
+}
+
+function openInterventionDialog() {
+  if (!requireRole("operator", "create an intervention")) return;
+  document.getElementById("interventionForm").reset();
+  document.getElementById("interventionError").textContent = "";
+  document.getElementById("interventionSpinInput").checked = true;
+  document.getElementById("interventionVeoInput").checked = true;
+  toggleInterventionExperimentFields();
+  document.getElementById("interventionDialog").showModal();
+  document.getElementById("interventionStrategyInput").focus();
+}
+
+function closeInterventionDialog() {
+  document.getElementById("interventionDialog").close();
+}
+
+function submitIntervention(event) {
+  event.preventDefault();
+  if (!requireRole("operator", "create an intervention")) return;
+  const error = document.getElementById("interventionError");
+  const interventionType = document.getElementById("interventionTypeInput").value;
+  const strategy = document.getElementById("interventionStrategyInput").value.trim();
+  const zone = document.getElementById("interventionZoneInput").value.trim();
+  const rationale = document.getElementById("interventionRationaleInput").value.trim();
+  const targetVendors = [
+    document.getElementById("interventionSpinInput").checked ? "Spin" : "",
+    document.getElementById("interventionVeoInput").checked ? "Veo" : ""
+  ].filter(Boolean);
+  if (strategy.length < 5 || zone.length < 2 || rationale.length < 12) {
+    error.textContent = "Add a strategy, service area, and concise rationale.";
+    return;
+  }
+  if (!targetVendors.length) {
+    error.textContent = "Select at least one vendor that must respond.";
+    return;
+  }
+  const hypothesis = document.getElementById("interventionHypothesisInput").value.trim();
+  const successMeasure = document.getElementById("interventionSuccessMeasureInput").value.trim();
+  const plannedStart = document.getElementById("interventionStartInput").value;
+  const plannedEnd = document.getElementById("interventionEndInput").value;
+  if (interventionType === "experiment") {
+    if (hypothesis.length < 12 || successMeasure.length < 8 || !plannedStart || !plannedEnd) {
+      error.textContent = "Experiments require a hypothesis, success measure, and start and end dates.";
+      return;
+    }
+    if (new Date(`${plannedEnd}T12:00:00`) <= new Date(`${plannedStart}T12:00:00`)) {
+      error.textContent = "The experiment end date must be after its start date.";
+      return;
+    }
+  }
+  const createdAt = new Date().toISOString();
+  const item = {
+    id: nextInterventionId(),
+    interventionType,
+    zone,
+    strategy,
+    rationale,
+    status: "recommended",
+    team: responseTeamForZone(zone),
+    createdAt,
+    targetVendors,
+    vendorResponses: {},
+    sourceIssueIds: [],
+    independentIssueIds: [],
+    eventEvidence: [],
+    hypothesis: interventionType === "experiment" ? hypothesis : "",
+    successMeasure: interventionType === "experiment" ? successMeasure : "",
+    plannedStart: interventionType === "experiment" ? plannedStart : "",
+    plannedEnd: interventionType === "experiment" ? plannedEnd : "",
+    transitions: [{ status: "recommended", at: createdAt, actor: `local-${currentRole}` }]
+  };
+  state.interventions.push(item);
+  recordAudit("intervention_created", item.id, `${label(interventionType)} · ${zone} · ${targetVendors.join(", ")}`);
+  saveState();
+  closeInterventionDialog();
+  renderAll();
+  showNotice(`${item.id} created for review. Approval is required before dispatch.`, "success");
+}
+
 function renderInterventions() {
   const list = document.getElementById("interventionList");
   list.innerHTML = state.interventions.length ? state.interventions.map(item => `
     <article class="record-card">
       <div>
         <span class="badge badge-${item.status}">${label(item.status)}</span>
+        <p class="eyebrow">${escapeHtml(label(item.interventionType || "field_response"))}</p>
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${escapeHtml(item.rationale)}</p>
         ${item.sourceIssueIds?.length ? `<p class="intervention-evidence"><strong>Source records:</strong> ${item.sourceIssueIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : ""}
         ${item.eventEvidence?.length ? `<p class="intervention-evidence"><strong>Event-window context:</strong> ${item.eventEvidence.map(evidence => `${escapeHtml(evidence.issueId)} · ${escapeHtml(evidence.eventName)} · ${escapeHtml(label(evidence.window))} · ${evidence.venueDistanceMeters} m from venue`).join("; ")}</p>` : ""}
+        ${item.interventionType === "experiment" ? `
+          <div class="experiment-plan">
+            <p><strong>Hypothesis:</strong> ${escapeHtml(item.hypothesis)}</p>
+            <p><strong>Success measure:</strong> ${escapeHtml(item.successMeasure)}</p>
+            <p><strong>Planned window:</strong> ${escapeHtml(item.plannedStart)}–${escapeHtml(item.plannedEnd)}</p>
+          </div>` : ""}
         ${item.completionNotes ? `<p class="completion-note"><strong>Completion note:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
         ${renderVendorResponses(item)}
         <div class="record-meta">
@@ -1921,6 +2017,11 @@ function renderInterventions() {
           postWindow: `${postStart.toLocaleDateString()}–${postEnd.toLocaleDateString()} (pending)`,
           baselineSourceIds: baselineIssues.map(issue => issue.id),
           completionNotes: item.completionNotes,
+          interventionType: item.interventionType || "field_response",
+          hypothesis: item.hypothesis || "",
+          successMeasure: item.successMeasure || "",
+          plannedStart: item.plannedStart || "",
+          plannedEnd: item.plannedEnd || "",
           label: "inconclusive",
           createdAt: now.toISOString()
         });
@@ -2008,6 +2109,7 @@ function renderOutcomes() {
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${reduction === null ? "The post-intervention observation window is not complete." : `${item.baseline} baseline requests compared with ${item.post} afterward—a ${reduction}% reduction.`}</p>
         ${item.completionNotes ? `<p><strong>Completion evidence:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
+        ${item.interventionType === "experiment" ? `<p><strong>Experiment:</strong> ${escapeHtml(item.hypothesis)}<br><strong>Success measure:</strong> ${escapeHtml(item.successMeasure)}</p>` : ""}
         ${item.baselineSourceIds?.length ? `<p><strong>Baseline records:</strong> ${item.baselineSourceIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : `<p><strong>Baseline records:</strong> none in the defined window.</p>`}
         <div class="record-meta"><span>Baseline: ${escapeHtml(item.baselineWindow)}</span><span>Post-period: ${escapeHtml(item.postWindow)}</span><span>${escapeHtml(item.interventionId)}</span></div>
       </div>
@@ -2682,6 +2784,7 @@ function renderAll() {
   renderOperationalMap();
   renderSiteMetrics();
   document.getElementById("openIntake").disabled = !roleAllows("operator");
+  document.getElementById("openIntervention").disabled = !roleAllows("operator");
   document.getElementById("importFile").disabled = !roleAllows("operator");
   document.getElementById("resetDemo").disabled = !roleAllows("admin");
   document.querySelector("#subscriptionForm button[type='submit']").disabled = !roleAllows("operator");
@@ -2770,6 +2873,11 @@ document.getElementById("mapControls").addEventListener("input", renderOperation
 document.getElementById("mapControls").addEventListener("change", renderOperationalMap);
 document.getElementById("mapControls").addEventListener("submit", searchNearAddress);
 document.getElementById("openIntake").addEventListener("click", openIntakeDialog);
+document.getElementById("openIntervention").addEventListener("click", openInterventionDialog);
+document.getElementById("closeIntervention").addEventListener("click", closeInterventionDialog);
+document.getElementById("cancelIntervention").addEventListener("click", closeInterventionDialog);
+document.getElementById("interventionForm").addEventListener("submit", submitIntervention);
+document.getElementById("interventionTypeInput").addEventListener("change", toggleInterventionExperimentFields);
 document.getElementById("closeIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("cancelIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("intakeForm").addEventListener("submit", submitIntake);
