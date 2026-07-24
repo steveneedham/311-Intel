@@ -137,20 +137,43 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   3,578 valid positions, and reported zero rejected rows. A disposable
   two-snapshot unit test verifies newest-snapshot selection, invalid-row
   accounting, vendor counts, and Goodale watch-history generation.
+- A standard-library local service now provides optional durable operations:
+  PBKDF2 password verification, HTTP-only same-site sessions, per-session CSRF
+  tokens, Viewer/Operator/Administrator roles, optimistic state versions,
+  SQLite persistence, and database triggers that reject audit updates or
+  deletions. No default credentials are embedded; users are configured from
+  environment variables and password changes revoke their existing sessions.
+- An authenticated browser acceptance run passed eight checks: service
+  detection, server-assigned Administrator role, visible persistence boundary,
+  request write-through, persistence after reload, append-only audit creation,
+  authenticated actor attribution, and zero JavaScript errors. Separate API
+  tests proved anonymous reads are rejected, Operator changes are limited to
+  request workflow fields and new recommendations, Administrator approval is
+  required, stale versions return conflict, CSRF is enforced, and audit rows
+  cannot be deleted.
+- Complaint classification and operator attribution now expose their evidence
+  in request detail. A deterministic fixture containing “Spin” and “wheelchair
+  curb ramp” produced `ADA ramp` through the documented accessibility keyword
+  rule and attributed Spin through an explicit narrative-name rule. The
+  preserved 104-record Base44 export has no complaint narratives—all records
+  contain only the generic descriptor `Shared Electric Bike & Scooters`—so
+  those records honestly retain the source `sidewalk_block` label and
+  `unknown` operator unless photo-confirmed. The interface explains that
+  evidence boundary instead of inventing specificity.
 
 ## Acceptance-test audit
 
 | # | Requirement | Status | Evidence or gap |
 |---|---|---|---|
 | 1 | A new source complaint is ingested once and appears in the operational queue. | Proven locally | Browser test added `CAS-LOCAL-TEST-001`, increased the open queue from 8 to 9, and showed the record detail. A second submission with the same source ID was rejected. The test record was removed afterward. |
-| 2 | Classification and operator attribution include inspectable evidence. | Partial | Imported source description, complaint type, operator, and coordinates are visible. Two user-reviewed official request photographs support explicit local overrides: `CAS-3080008-R7Z5H2` is Veo (teal vehicle) and `CAS-3079843-Q2Y0Q4` is Spin (orange vehicles). Detail and map popups show attribution confidence, evidence, and the official request link. Automated image attribution and confidence review remain unimplemented. |
-| 3 | An authorized user can assign a request, change status, and see an audit history. | Partial | Trial roles now restrict request writes to Operator/Administrator and intervention transitions to Administrator. Intake, imports, request changes, and intervention transitions append to a visible activity ledger. Controls and history remain browser-local rather than authenticated/server-immutable. |
+| 2 | Classification and operator attribution include inspectable evidence. | Proven locally | Narrative inputs use deterministic ordered keyword rules and show the matched rule, confidence class, and supplied evidence. Explicit Veo/Spin narrative names produce reviewable attribution; both names produce `ambiguous`; no name produces `unattributed`. Two user-reviewed official photographs support overrides for `CAS-3080008-R7Z5H2` (Veo) and `CAS-3079843-Q2Y0Q4` (Spin). The current export has no narratives, so its remaining records retain source-only labels rather than fabricated classifications. Automated image attribution is intentionally not claimed. |
+| 3 | An authorized user can assign a request, change status, and see an audit history. | Proven locally | The durable service authenticates a configured user, supplies the server role to the browser, persists request updates in SQLite, and exposes an append-only server audit ledger. The acceptance update survived a full reload and was attributed to `admin`. Production identity-provider integration remains a deployment gate. |
 | 4 | The complaint appears at the correct map location and in the correct zone. | Proven for available coordinates | The joined operational street map plots every selected 311 record at its stored latitude/longitude with source ID, address, zone, status, and priority. It overlays 3,578 GBFS positions, cross-vendor flags, and named watches on OpenStreetMap tiles. Source-zone correctness still depends on the upstream record. |
 | 5 | A qualifying cluster produces an explainable hotspot and recommendation. | Proven locally | A temporary Critical ADA fixture generated a score-9 High hotspot. Operator created an intervention preserving its score, one source record, one independent signal, deterministic response team, rationale, and initial transition. Viewer controls were disabled, and duplicate active-zone recommendations are prevented. The fixture was discarded after testing. Cross-vendor GBFS flags remain human-review signals rather than automatic violations. Event-window context is added only when a source request is within 1,500 m of the verified venue and inside a documented schedule window. |
 | 6 | A recommendation cannot be dispatched before approval. | Proven locally | Browser test confirmed a recommended intervention exposes only Approve; Dispatch appears only after approval. |
 | 7 | Completing an intervention creates an outcome path with explicit dates. | Proven locally | Isolated Chromium testing completed recommended → approved → dispatched → completed, required a completion note, and created an inconclusive outcome with four ISO boundary timestamps, readable seven-day windows, baseline source IDs, and completion evidence. A separate skipped recommendation created no outcome. |
 | 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for snapshot | The interface shows `Base44 snapshot · 104`, 8 open, 96 resolved, and recalculates counts after local intake and status changes. |
-| 9 | A non-admin cannot perform admin-only writes. | Partial | The local role gate prevents Viewer request writes and prevents Viewer/Operator intervention transitions. Production proof still requires authenticated identities and backend authorization that cannot be bypassed in the browser. |
+| 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous state reads, requires CSRF for writes, permits an authenticated Operator to assign requests and add only `recommended` interventions, and returns 403 when that Operator attempts approval. An authenticated Administrator can perform the same transition. |
 | 10 | Existing records remain present after the change. | Proven for build process | Base44 was accessed read-only; all 104 exported records remained available. Live write integration has not begun. |
 | 11 | Mobile and desktop layouts preserve operational hierarchy. | Proven locally | Headless Chromium verified the Historical Trends view at 1440×1000 and 390×844. Both layouts show the source boundary, metrics, monthly volume, channels, repeat locations, and anonymous reporting-pattern evidence; document width matches the viewport at both sizes. The horizontally scrollable mobile navigation is intentional. |
 | 12 | UI text does not claim unverified functions are live. | Proven locally | The interface labels the data as a dated read-only Base44 snapshot and local edits as browser-only. |
@@ -168,22 +191,25 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 
 - Install the declared Playwright development dependency with `npm install`.
 - Run `npm test` from the project root.
-- Expected current result: `passed: 28`.
+- Expected current browser-only result: `passed: 34`.
 - Run `npm run refresh:gbfs` to deterministically rebuild the current positions
   and complete watch history from the configured snapshot archive.
+- Run `npm run serve` with one or more `APP_*_PASSWORD` values to exercise
+  durable authenticated mode; no password is included in the repository.
 - The suite is local-only and does not read from or write to Base44, GitHub, or
   City systems.
 
 ## Remaining completion gates
 
 1. Select and authorize a deployment route.
-2. Add authentication, admin/user authorization, and immutable action history.
+2. Replace evaluation passwords with an approved identity provider, managed
+   secrets, HTTPS, backups, and operational session policy for deployment.
 3. Implement and verify transparent complaint and operator attribution.
 4. Collect enough additional matched event and non-event GBFS snapshots to
    test recurrence; the current schedule join has only one event-linked
    observation and cannot establish causation.
-5. Connect controlled writes to a durable backend without risking existing
-   Base44 records.
+5. Select the production database and migrate the proven SQLite state contract
+   without risking existing Base44 records.
 6. Run the complete acceptance suite against the deployed application.
 
 ## Base44 credit decision

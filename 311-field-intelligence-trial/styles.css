@@ -323,6 +323,10 @@ main { padding: 0 clamp(20px, 4vw, 64px) 64px; }
 .pileup-item.watch-item { background: #faf5e8; }
 .watch-history { display: flex; align-items: end; gap: 4px; height: 48px; margin: 14px 0 8px; padding-bottom: 1px; border-bottom: 1px solid var(--line); }
 .watch-history span { flex: 1; min-width: 5px; background: var(--amber); opacity: 0.72; }
+.watch-history span.event-linked-bar { background: var(--green); opacity: 1; }
+.event-context { margin: 12px 0; padding: 12px; border-left: 2px solid var(--green); background: rgba(255,255,255,0.56); }
+.event-context > strong { color: var(--green); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.event-context a { color: var(--green); font-size: 0.68rem; font-weight: 700; }
 
 .panel-heading {
   display: flex;
@@ -435,6 +439,8 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
 .icon-button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; font-size: 1.35rem; line-height: 1; }
 .form-note { margin: 14px 0 22px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid.single-column { grid-template-columns: 1fr; }
+.auth-dialog { width: min(520px, calc(100vw - 32px)); }
 .form-grid label { display: grid; gap: 6px; color: var(--ink); font-size: 0.74rem; font-weight: 650; }
 .form-grid label span { color: var(--muted); font-size: 0.62rem; font-weight: 500; text-transform: uppercase; }
 .form-grid input, .form-grid select, .form-grid textarea { width: 100%; padding: 10px 11px; border: 1px solid var(--line); color: var(--ink); background: white; font-size: 0.8rem; }
@@ -456,8 +462,12 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
 .hotspot-item:last-child { border-bottom: 0; }
 .hotspot-item h3 { margin: 7px 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; font-weight: 400; }
 .hotspot-item p { margin-bottom: 8px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
+.hotspot-item .secondary-button { margin-top: 5px; }
+.threshold-note { font-style: italic; }
 .hotspot-item.named-watch { margin: 0 -22px; padding: 20px 22px; background: #faf5e8; }
 .hotspot-item.reporting-watch { background: #eef3f5; }
+.hotspot-item.event-watch { background: #f1eee4; }
+.hotspot-item.event-watch a { color: var(--green); font-weight: 700; }
 
 .historical-source strong { font-weight: 700; }
 .trend-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr); gap: 20px; margin-bottom: 20px; }
@@ -527,6 +537,9 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
 .record-card p { max-width: 760px; margin-bottom: 8px; color: var(--muted); font-size: 0.8rem; line-height: 1.5; }
 .record-actions { display: flex; align-items: center; gap: 8px; }
 .record-meta { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 16px; color: var(--muted); font-size: 0.72rem; }
+.intervention-evidence, .completion-note { padding: 10px 12px; background: #f1f1ec; }
+.completion-control { display: grid; gap: 7px; min-width: 260px; color: var(--muted); font-size: 0.68rem; font-weight: 650; }
+.completion-control textarea { min-height: 82px; padding: 9px; border: 1px solid var(--line); color: var(--ink); background: white; resize: vertical; font-size: 0.75rem; font-weight: 400; }
 .empty-card { padding: 34px; border: 1px dashed var(--line); color: var(--muted); background: rgba(255,255,255,0.45); line-height: 1.55; }
 
 .source-callout { margin-bottom: 18px; padding: 20px 24px; border-left: 3px solid var(--green); background: var(--green-soft); }
@@ -591,6 +604,7 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .vehicle-filters { grid-template-columns: 1fr; }
   .record-card { grid-template-columns: 1fr; }
   .record-actions { justify-content: flex-start; }
+  .completion-control { min-width: 0; width: 100%; }
   .zone-map { grid-template-columns: 1fr 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .full-field { grid-column: auto; }

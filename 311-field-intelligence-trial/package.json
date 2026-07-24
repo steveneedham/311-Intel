@@ -5,9 +5,10 @@
   "description": "Evidence-forward Columbus 311 micromobility operations trial.",
   "type": "module",
   "scripts": {
-    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
+    "serve": "python3 server.py",
+    "serve:static": "python3 -m http.server 8765 --bind 127.0.0.1",
     "refresh:gbfs": "python3 build_gbfs_snapshot.py",
-    "test": "node tests/acceptance.mjs && python3 -m unittest tests/test_build_gbfs_snapshot.py"
+    "test": "node tests/acceptance.mjs && node tests/durable_acceptance.mjs && python3 -m unittest tests/test_build_gbfs_snapshot.py tests/test_server.py"
   },
   "devDependencies": {
     "playwright": "^1.54.0"

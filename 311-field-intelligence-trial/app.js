@@ -48,6 +48,15 @@ const teams = ["", "Central response", "North response", "West response", "South
 let state = loadState();
 let selectedIssueId = null;
 let currentRole = localStorage.getItem(ROLE_KEY) || "admin";
+let durableSession = {
+  available: false,
+  authenticated: false,
+  username: "",
+  role: "",
+  csrf: "",
+  version: 0
+};
+let durableSaveQueue = Promise.resolve();
 let vehicleState = { vehicles: [], snapshotId: "", sourceFile: "", pileups: [], watchHistory: [] };
 let operationalMap = null;
 let operationalMapLayers = null;
@@ -55,6 +64,7 @@ let operationalMapHasFit = false;
 let operationalMapSearchLayer = null;
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
+let eventState = { events: [], venue: null, source: null, status: "loading" };
 const vehicleWatchLocations = [
   {
     id: "WATCH-GOODALE-OLENTANGY",
@@ -63,7 +73,7 @@ const vehicleWatchLocations = [
     lng: -83.0260,
     radius: 250,
     context: "Event-linked hypothesis: reported recurring post–Columbus Crew match staging and dumping area.",
-    comparison: "Compare pre-event, 0–2 hours post-event, and next-morning snapshots."
+    comparison: "Compare pre-event, 0–2 hour immediate, 2–6 hour recovery, next-morning, and non-event snapshots."
   }
 ];
 
@@ -89,7 +99,10 @@ function roleAllows(required) {
 
 function requireRole(required, action) {
   if (roleAllows(required)) return true;
-  showNotice(`${label(currentRole)} role cannot ${action}. Switch the trial role to ${label(required)} or higher.`, "error");
+  const direction = durableSession.authenticated
+    ? `An authenticated ${label(required)} is required.`
+    : `Switch the trial role to ${label(required)} or higher.`;
+  showNotice(`${label(currentRole)} role cannot ${action}. ${direction}`, "error");
   return false;
 }
 
@@ -98,7 +111,7 @@ function recordAudit(action, target, detail = "") {
   state.auditLog.push({
     id: `AUD-${crypto.randomUUID()}`,
     at: new Date().toISOString(),
-    actor: `local-${currentRole}`,
+    actor: durableSession.authenticated ? durableSession.username : `local-${currentRole}`,
     role: currentRole,
     action,
     target,
@@ -108,6 +121,177 @@ function recordAudit(action, target, detail = "") {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (durableSession.authenticated && roleAllows("operator")) {
+    durableSaveQueue = durableSaveQueue
+      .then(writeDurableState)
+      .catch(error => {
+        console.error("Durable state save failed.", error);
+        showNotice(`Durable save failed: ${error.message}`, "error");
+      });
+  }
+}
+
+async function apiJson(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (options.csrf && durableSession.csrf) headers["X-CSRF-Token"] = durableSession.csrf;
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    cache: "no-store"
+  });
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) throw new Error("Durable service is unavailable.");
+  const payload = await response.json();
+  if (!response.ok) {
+    const error = new Error(payload.error || `Service request failed with ${response.status}`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
+}
+
+function serverAuditEntries(entries = []) {
+  return entries.map(entry => ({
+    id: `SERVER-AUD-${entry.sequence}`,
+    at: entry.at,
+    actor: entry.actor,
+    role: entry.role,
+    action: entry.action,
+    target: entry.target,
+    detail: entry.detail
+  }));
+}
+
+async function writeDurableState() {
+  try {
+    const result = await apiJson("/api/state", {
+      method: "PUT",
+      csrf: true,
+      body: { version: durableSession.version, state }
+    });
+    durableSession.version = result.version;
+  } catch (error) {
+    if (error.status === 409 && Number.isInteger(error.payload?.version)) {
+      durableSession.version = error.payload.version;
+      throw new Error("another session changed the workflow; reload before saving again");
+    }
+    throw error;
+  }
+}
+
+async function loadDurableState() {
+  const [workflow, audit] = await Promise.all([
+    apiJson("/api/state"),
+    apiJson("/api/audit")
+  ]);
+  durableSession.version = workflow.version;
+  if (workflow.state?.issues) {
+    state = {
+      ...workflow.state,
+      auditLog: serverAuditEntries(audit.entries)
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } else if (roleAllows("operator")) {
+    await writeDurableState();
+  }
+}
+
+function renderDurableMode() {
+  const roleSelect = document.getElementById("roleSelect");
+  const authButton = document.getElementById("authButton");
+  const roleLabel = document.getElementById("roleControlLabel");
+  const persistenceNote = document.getElementById("persistenceNote");
+  const activityNote = document.getElementById("activityStorageNote");
+  authButton.hidden = !durableSession.available;
+  roleSelect.disabled = durableSession.authenticated;
+  roleLabel.textContent = durableSession.authenticated ? "Authenticated role" : "Trial role";
+  authButton.textContent = durableSession.authenticated
+    ? `Sign out ${durableSession.username}`
+    : "Sign in";
+  if (durableSession.authenticated) {
+    persistenceNote.textContent = `Workflow changes are versioned in SQLite as ${durableSession.username}; the Base44 source snapshot remains read-only.`;
+    activityNote.textContent = "Server-side audit entries are append-only and attributed to authenticated identities.";
+  } else {
+    persistenceNote.textContent = "Source snapshot is read-only; assignments and notes stay in this browser.";
+    activityNote.textContent = "Append-only within this browser trial. Sign in through the durable local service for server-enforced storage.";
+  }
+}
+
+async function initializeDurableMode() {
+  try {
+    const session = await apiJson("/api/session");
+    durableSession.available = true;
+    if (session.authenticated) {
+      durableSession = {
+        ...durableSession,
+        authenticated: true,
+        username: session.username,
+        role: session.role,
+        csrf: session.csrf
+      };
+      currentRole = session.role;
+      localStorage.setItem(ROLE_KEY, currentRole);
+      await loadDurableState();
+    }
+  } catch {
+    durableSession.available = false;
+  }
+  document.getElementById("roleSelect").value = currentRole;
+  renderDurableMode();
+}
+
+async function submitAuth(event) {
+  event.preventDefault();
+  const error = document.getElementById("authError");
+  error.textContent = "";
+  try {
+    const session = await apiJson("/api/login", {
+      method: "POST",
+      body: {
+        username: document.getElementById("authUsername").value.trim(),
+        password: document.getElementById("authPassword").value
+      }
+    });
+    durableSession = {
+      available: true,
+      authenticated: true,
+      username: session.username,
+      role: session.role,
+      csrf: session.csrf,
+      version: 0
+    };
+    currentRole = session.role;
+    localStorage.setItem(ROLE_KEY, currentRole);
+    await loadDurableState();
+    document.getElementById("authDialog").close();
+    document.getElementById("authForm").reset();
+    document.getElementById("roleSelect").value = currentRole;
+    renderDurableMode();
+    renderAll();
+    showNotice(`Signed in as ${session.username}. Durable workflow storage is active.`, "success");
+  } catch (authError) {
+    error.textContent = authError.message;
+  }
+}
+
+async function signOutDurableMode() {
+  await apiJson("/api/logout", { method: "POST", csrf: true, body: {} });
+  durableSession = {
+    available: true,
+    authenticated: false,
+    username: "",
+    role: "",
+    csrf: "",
+    version: 0
+  };
+  currentRole = "viewer";
+  localStorage.setItem(ROLE_KEY, currentRole);
+  document.getElementById("roleSelect").value = currentRole;
+  renderDurableMode();
+  renderAll();
+  showNotice("Signed out. Durable records remain on the server; local trial controls are available in Viewer mode.");
 }
 
 function showNotice(message, tone = "") {
@@ -127,6 +311,76 @@ function normalizedPriority(record) {
   return "standard";
 }
 
+function sourceNarrative(record) {
+  const description = String(record.description || "").trim();
+  if (description) return description;
+  const descriptor = String(record.descriptor || "").trim();
+  return /^shared electric bike\s*&\s*scooters$/i.test(descriptor) ? "" : descriptor;
+}
+
+function classifyComplaint(record) {
+  const narrative = sourceNarrative(record);
+  const rules = [
+    { type: "ADA ramp", pattern: /\b(ada|wheelchair|curb (?:cut|ramp)|accessibility|tactile)\b/i, rule: "accessibility or curb-ramp keyword" },
+    { type: "Business entrance", pattern: /\b(entrance|doorway|driveway|exit)\b/i, rule: "entrance or driveway keyword" },
+    { type: "Pile-up", pattern: /\b(pile[\s-]?up|cluster|stack(?:ed|ing)?|multiple|several|group of)\b/i, rule: "multi-vehicle concentration keyword" },
+    { type: "Abandoned", pattern: /\b(abandon(?:ed)?|damaged|broken|discarded)\b/i, rule: "abandoned or damaged-device keyword" },
+    { type: "No-ride zone", pattern: /\b(no[\s-]?ride|geofence|riding through|pedestrian plaza)\b/i, rule: "riding or geofence keyword" },
+    { type: "Sidewalk block", pattern: /\b(sidewalk|pedestrian path|walkway|blocking|obstruct(?:ed|ion|ing)?)\b/i, rule: "pedestrian-path obstruction keyword" }
+  ];
+  const match = narrative ? rules.find(rule => rule.pattern.test(narrative)) : null;
+  if (match) {
+    return {
+      type: match.type,
+      confidence: "rule-matched",
+      evidence: `Matched ${match.rule} in the supplied narrative.`
+    };
+  }
+  const sourceType = String(record.complaint_type || record.type || "other");
+  return {
+    type: label(sourceType),
+    confidence: "source-label",
+    evidence: narrative
+      ? `No classification keyword matched; retained source label “${label(sourceType)}”.`
+      : `Retained source label “${label(sourceType)}”; the export contains no complaint narrative to classify.`
+  };
+}
+
+function attributeOperator(record, sourceId) {
+  const override = operatorEvidenceOverrides[sourceId];
+  if (override) return override;
+  const sourceOperator = String(record.operator || "").trim();
+  if (/^(veo|spin)$/i.test(sourceOperator)) {
+    const operator = sourceOperator.toLowerCase() === "veo" ? "Veo" : "Spin";
+    return {
+      operator,
+      confidence: "source-provided",
+      evidence: `The source record identifies ${operator}.`,
+      sourceUrl: ""
+    };
+  }
+  const narrative = sourceNarrative(record);
+  const mentionsVeo = /\bveo\b/i.test(narrative);
+  const mentionsSpin = /\bspin\b/i.test(narrative);
+  if (mentionsVeo !== mentionsSpin) {
+    const operator = mentionsVeo ? "Veo" : "Spin";
+    return {
+      operator,
+      confidence: "description-keyword",
+      evidence: `The supplied narrative explicitly names ${operator}; field or photo verification is still recommended.`,
+      sourceUrl: ""
+    };
+  }
+  return {
+    operator: "unknown",
+    confidence: mentionsVeo && mentionsSpin ? "ambiguous" : "unattributed",
+    evidence: mentionsVeo && mentionsSpin
+      ? "The narrative names both vendors, so no single operator was assigned."
+      : "Neither the source operator field nor the supplied narrative identifies a vendor.",
+    sourceUrl: ""
+  };
+}
+
 function normalizeImportedIssue(record) {
   const sourceId = record.source_id || record.id;
   const reportedAt = record.reported_at || record.reportedAt;
@@ -139,20 +393,23 @@ function normalizeImportedIssue(record) {
   const status = ["received", "assigned", "in_progress", "resolved"].includes(rawStatus)
     ? rawStatus
     : rawStatus === "closed" ? "resolved" : "received";
-  const operatorEvidence = operatorEvidenceOverrides[sourceId] || null;
+  const classification = classifyComplaint(record);
+  const operatorEvidence = attributeOperator(record, sourceId);
   return {
     id: String(sourceId),
-    type: label(record.complaint_type || record.type || "other"),
+    type: classification.type,
+    classificationConfidence: classification.confidence,
+    classificationEvidence: classification.evidence,
     descriptor: String(record.descriptor || record.description || "No source description supplied"),
     address: String(record.address),
     zone: String(record.zone_id || record.zone || "Unassigned zone").replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase()),
-    operator: operatorEvidence?.operator || String(record.operator || "unknown"),
-    operatorConfidence: operatorEvidence?.confidence || (record.operator && record.operator !== "unknown" ? "source-provided" : "unattributed"),
-    operatorEvidence: operatorEvidence?.evidence || "",
-    sourceUrl: operatorEvidence?.sourceUrl || "",
+    operator: operatorEvidence.operator,
+    operatorConfidence: operatorEvidence.confidence,
+    operatorEvidence: operatorEvidence.evidence,
+    sourceUrl: operatorEvidence.sourceUrl || "",
     reportedAt: new Date(reportedAt).toISOString(),
     status,
-    priority: normalizedPriority(record),
+    priority: normalizedPriority({ ...record, complaint_type: classification.type }),
     team: String(record.team || record.assigned_team || ""),
     notes: String(record.notes || ""),
     lat: latitude,
@@ -284,10 +541,97 @@ async function hydrateHistorical311() {
   }
 }
 
+async function hydrateEvents() {
+  try {
+    const response = await fetch("external-events.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Event dataset request failed with ${response.status}`);
+    const data = await response.json();
+    if (!Array.isArray(data.events) || !data.venue || !data.source?.url) {
+      throw new Error("Event dataset is missing required provenance or venue fields.");
+    }
+    eventState = {
+      events: data.events,
+      venue: data.venue,
+      source: data.source,
+      status: "verified-schedule"
+    };
+  } catch (error) {
+    console.warn("External event context unavailable.", error);
+    eventState = { events: [], venue: null, source: null, status: "unavailable" };
+  }
+}
+
 function distanceMeters(a, b) {
   const latScale = 111320;
   const lngScale = 111320 * Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180);
   return Math.hypot((a.lat - b.lat) * latScale, (a.lng - b.lng) * lngScale);
+}
+
+function snapshotIdToDate(snapshotId) {
+  const match = String(snapshotId || "").match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (!match) return null;
+  return new Date(Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6])
+  ));
+}
+
+function eventContextForTime(value) {
+  const time = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(time.getTime())) return null;
+  const windows = eventState.events.filter(event => event.start_at && event.expected_end_at).map(event => {
+    const start = new Date(event.start_at);
+    const end = new Date(event.expected_end_at);
+    const hoursFromEnd = (time - end) / 3600000;
+    let window = "";
+    if (time >= new Date(start.getTime() - 4 * 3600000) && time < start) window = "pre_event";
+    else if (time >= start && time <= end) window = "during_event";
+    else if (hoursFromEnd > 0 && hoursFromEnd <= 2) window = "immediate_post_event";
+    else if (hoursFromEnd > 2 && hoursFromEnd <= 6) window = "recovery_window";
+    else if (hoursFromEnd > 6 && hoursFromEnd <= 16) window = "next_morning";
+    return window ? { event, window, hoursFromEnd } : null;
+  }).filter(Boolean);
+  return windows.toSorted((a, b) => Math.abs(a.hoursFromEnd) - Math.abs(b.hoursFromEnd))[0] || null;
+}
+
+function eventEvidenceForIssue(issue) {
+  if (!eventState.venue || !Number.isFinite(issue.lat) || !Number.isFinite(issue.lng)) return null;
+  const venueDistance = distanceMeters(issue, eventState.venue);
+  if (venueDistance > 1500) return null;
+  const context = eventContextForTime(issue.reportedAt);
+  return context ? {
+    issueId: issue.id,
+    eventId: context.event.id,
+    eventName: context.event.name,
+    window: context.window,
+    hoursFromExpectedEnd: Math.round(context.hoursFromEnd * 10) / 10,
+    venueDistanceMeters: Math.round(venueDistance)
+  } : null;
+}
+
+function watchEventAnalysis() {
+  const observations = vehicleState.watchHistory.map(snapshot => {
+    const observedAt = snapshotIdToDate(snapshot.snapshot_id);
+    return { ...snapshot, observedAt, eventContext: observedAt ? eventContextForTime(observedAt) : null };
+  });
+  const eventLinked = observations.filter(observation => observation.eventContext);
+  const baseline = observations.filter(observation => !observation.eventContext);
+  const median = values => {
+    const ordered = values.toSorted((a, b) => a - b);
+    return ordered.length ? ordered[Math.floor(ordered.length / 2)] : null;
+  };
+  return {
+    observations,
+    eventLinked,
+    baseline,
+    eventMedian: median(eventLinked.map(item => item.watch_count)),
+    baselineMedian: median(baseline.map(item => item.watch_count)),
+    latest: observations.at(-1) || null
+  };
 }
 
 function detectPileups(vehicles) {
@@ -387,10 +731,16 @@ function submitIntake(event) {
   const issue = {
     id: sourceId,
     type,
+    classificationConfidence: "operator-selected",
+    classificationEvidence: `Complaint type selected by ${durableSession.authenticated ? durableSession.username : `local-${currentRole}`} during intake.`,
     descriptor: document.getElementById("intakeDescriptor").value.trim() || "No source description supplied",
     address: document.getElementById("intakeAddress").value.trim(),
     zone: document.getElementById("intakeZone").value.trim(),
     operator: document.getElementById("intakeOperator").value,
+    operatorConfidence: document.getElementById("intakeOperator").value === "unknown" ? "unattributed" : "operator-selected",
+    operatorEvidence: document.getElementById("intakeOperator").value === "unknown"
+      ? "No operator was identified during intake."
+      : `Operator selected during intake; source or photo verification remains recommended.`,
     reportedAt: new Date(document.getElementById("intakeReportedAt").value).toISOString(),
     status: "received",
     priority: normalizedPriority({ type }),
@@ -416,7 +766,7 @@ function escapeHtml(value = "") {
 }
 
 function label(value = "") {
-  return value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+  return value.replace(/[_-]/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 function ageInHours(date) {
@@ -536,8 +886,11 @@ function renderDetail() {
     <dl class="evidence">
       <div><dt>Source evidence</dt><dd>${escapeHtml(issue.descriptor)}</dd></div>
       <div><dt>Reported</dt><dd>${new Date(issue.reportedAt).toLocaleString()}</dd></div>
+      <div><dt>Classification</dt><dd>${escapeHtml(label(issue.classificationConfidence || "trial fixture"))}</dd></div>
+      <div><dt>Classification evidence</dt><dd>${escapeHtml(issue.classificationEvidence || "Local trial fixture; no automated classification claim.")}</dd></div>
       <div><dt>Operator</dt><dd>${escapeHtml(issue.operator)}</dd></div>
       <div><dt>Attribution</dt><dd>${escapeHtml(label(issue.operatorConfidence || "unattributed"))}</dd></div>
+      <div><dt>Attribution evidence</dt><dd>${escapeHtml(issue.operatorEvidence || "No operator evidence is available.")}</dd></div>
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
     </dl>
     ${issue.operatorEvidence ? `<div class="operator-evidence"><strong>Photo evidence</strong><p>${escapeHtml(issue.operatorEvidence)}</p>${issue.sourceUrl ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open official request and photographs</a>` : ""}</div>` : ""}
@@ -618,6 +971,61 @@ function reportingPatternWatch() {
   };
 }
 
+function responseTeamForZone(zone) {
+  if (/hilltop|west/i.test(zone)) return "West response";
+  if (/south/i.test(zone)) return "South response";
+  if (/north|clintonville|italian|university|victorian/i.test(zone)) return "North response";
+  return "Central response";
+}
+
+function nextInterventionId() {
+  const highest = state.interventions.reduce((maximum, item) => {
+    const numeric = Number(String(item.id).match(/\d+/)?.[0]);
+    return Number.isFinite(numeric) ? Math.max(maximum, numeric) : maximum;
+  }, 0);
+  return `INT-${String(highest + 1).padStart(3, "0")}`;
+}
+
+function generateHotspotRecommendation(zone) {
+  if (!requireRole("operator", "generate an intervention recommendation")) return;
+  const hotspot = hotspots().find(item => item.zone === zone);
+  if (!hotspot || !["high", "critical"].includes(hotspot.tier)) {
+    showNotice("This hotspot does not meet the current recommendation threshold.", "error");
+    return;
+  }
+  const duplicate = state.interventions.find(item =>
+    item.zone === zone && !["completed", "skipped"].includes(item.status)
+  );
+  if (duplicate) {
+    showNotice(`${duplicate.id} already covers this zone.`, "error");
+    return;
+  }
+  const createdAt = new Date().toISOString();
+  const eventEvidence = hotspot.issues.map(eventEvidenceForIssue).filter(Boolean);
+  const item = {
+    id: nextInterventionId(),
+    zone,
+    strategy: hotspot.critical
+      ? "Accessibility obstruction field response"
+      : "Targeted field verification and redistribution",
+    rationale: `${hotspot.independentSignals.length} independent prioritization signals produce a score of ${hotspot.score}; ${hotspot.critical} are critical. Same-address reports within ten minutes are retained as records but collapsed for scoring.${eventEvidence.length ? ` ${eventEvidence.length} source record${eventEvidence.length === 1 ? "" : "s"} also fall within the documented venue/time review window; this is contextual evidence, not proof of causation.` : ""}`,
+    status: "recommended",
+    team: responseTeamForZone(zone),
+    createdAt,
+    score: hotspot.score,
+    tier: hotspot.tier,
+    sourceIssueIds: hotspot.issues.map(issue => issue.id),
+    independentIssueIds: hotspot.independentSignals.map(issue => issue.id),
+    eventEvidence,
+    transitions: [{ status: "recommended", at: createdAt, actor: `local-${currentRole}` }]
+  };
+  state.interventions.push(item);
+  recordAudit("intervention_recommended", item.id, `${zone} · score ${hotspot.score} · ${hotspot.issues.length} source records`);
+  saveState();
+  renderAll();
+  showNotice(`${item.id} created for review. Approval is still required before dispatch.`, "success");
+}
+
 function renderHotspots() {
   const data = hotspots();
   const reportingWatch = reportingPatternWatch();
@@ -640,6 +1048,17 @@ function renderHotspots() {
       <p>${fourthStreetIssues.length} verified complaints match the corridor; ${fourthStreetIssues.filter(issue => issue.status !== "resolved").length} remain open. Reported association with the new bike-lane configuration should be tested against installation dates and a pre-change baseline.</p>
       <p><strong>Evidence:</strong> ${fourthStreetIssues.map(issue => `${escapeHtml(issue.id)} · ${escapeHtml(issue.address)}`).join("; ")}</p>
     </article>` : "";
+  const eventAnalysis = watchEventAnalysis();
+  const latestEventContext = eventAnalysis.latest?.eventContext;
+  const eventWatchCard = latestEventContext ? `
+    <article class="hotspot-item named-watch event-watch">
+      <span class="badge badge-high">Event-window observation</span>
+      <h3>Goodale and Olentangy after ${escapeHtml(latestEventContext.event.name)}</h3>
+      <p>The ${new Date(eventAnalysis.latest.observedAt).toLocaleString()} GBFS snapshot was captured ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after the estimated match end and contains ${eventAnalysis.latest.watch_count} vehicles within 250 metres of the named watch.</p>
+      <p>${eventAnalysis.eventLinked.length} of ${eventAnalysis.observations.length} observations fall within a defined event window. Event-window median: ${eventAnalysis.eventMedian ?? "—"}; non-event median: ${eventAnalysis.baselineMedian ?? "—"}. One event-linked observation is insufficient to establish recurrence or causation.</p>
+      <p><strong>Join rule:</strong> four hours pre-event; official kickoff through an estimated 2h15 end; 0–2 hours immediate post-event; 2–6 hours recovery; 6–16 hours next morning.</p>
+      <p><a href="${escapeHtml(eventState.source?.url || "#")}" target="_blank" rel="noreferrer">Official Columbus Crew schedule source</a> · expected end times are analytical estimates.</p>
+    </article>` : "";
   const max = Math.max(...data.map(item => item.score), 1);
   document.getElementById("zoneMap").innerHTML = data.map(item => {
     const alpha = 0.12 + (item.score / max) * 0.7;
@@ -647,13 +1066,24 @@ function renderHotspots() {
       <div><strong>${escapeHtml(item.zone)}</strong><span style="color:inherit">${item.issues.length} open · score ${item.score}</span></div>
     </div>`;
   }).join("");
-  document.getElementById("hotspotList").innerHTML = reportingWatchCard + fourthStreetWatch + data.map(item => `
-    <article class="hotspot-item">
-      <span class="badge badge-${item.tier}">${label(item.tier)}</span>
-      <h3>${escapeHtml(item.zone)}</h3>
-      <p>${item.issues.length} open requests representing ${item.independentSignals.length} prioritization signals; ${item.critical} critical. Severity combines priority, recency, and accessibility relevance after duplicate-burst suppression.</p>
-      <p><strong>Evidence:</strong> ${item.issues.map(issue => escapeHtml(issue.id)).join(", ")}</p>
-    </article>`).join("");
+  const hotspotList = document.getElementById("hotspotList");
+  hotspotList.innerHTML = reportingWatchCard + fourthStreetWatch + eventWatchCard + data.map(item => {
+    const qualifying = ["high", "critical"].includes(item.tier);
+    const existing = state.interventions.find(intervention =>
+      intervention.zone === item.zone && !["completed", "skipped"].includes(intervention.status)
+    );
+    return `
+      <article class="hotspot-item">
+        <span class="badge badge-${item.tier}">${label(item.tier)}</span>
+        <h3>${escapeHtml(item.zone)}</h3>
+        <p>${item.issues.length} open requests representing ${item.independentSignals.length} prioritization signals; ${item.critical} critical. Severity combines priority, recency, and accessibility relevance after duplicate-burst suppression.</p>
+        <p><strong>Evidence:</strong> ${item.issues.map(issue => escapeHtml(issue.id)).join(", ")}</p>
+        ${qualifying ? `<button class="secondary-button" type="button" data-recommend-zone="${escapeHtml(item.zone)}" ${existing || !roleAllows("operator") ? "disabled" : ""}>${existing ? `${escapeHtml(existing.id)} in review` : "Generate recommendation"}</button>` : `<p class="threshold-note">Below the score threshold for an intervention recommendation.</p>`}
+      </article>`;
+  }).join("");
+  hotspotList.querySelectorAll("[data-recommend-zone]").forEach(button => {
+    button.addEventListener("click", () => generateHotspotRecommendation(button.dataset.recommendZone));
+  });
 }
 
 function renderInterventions() {
@@ -664,12 +1094,27 @@ function renderInterventions() {
         <span class="badge badge-${item.status}">${label(item.status)}</span>
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${escapeHtml(item.rationale)}</p>
-        <div class="record-meta"><span>${escapeHtml(item.id)}</span><span>Team: ${escapeHtml(item.team)}</span><span>Created ${new Date(item.createdAt).toLocaleDateString()}</span></div>
+        ${item.sourceIssueIds?.length ? `<p class="intervention-evidence"><strong>Source records:</strong> ${item.sourceIssueIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : ""}
+        ${item.eventEvidence?.length ? `<p class="intervention-evidence"><strong>Event-window context:</strong> ${item.eventEvidence.map(evidence => `${escapeHtml(evidence.issueId)} · ${escapeHtml(evidence.eventName)} · ${escapeHtml(label(evidence.window))} · ${evidence.venueDistanceMeters} m from venue`).join("; ")}</p>` : ""}
+        ${item.completionNotes ? `<p class="completion-note"><strong>Completion note:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
+        <div class="record-meta">
+          <span>${escapeHtml(item.id)}</span>
+          <span>Team: ${escapeHtml(item.team || "Unassigned")}</span>
+          <span>Created ${new Date(item.createdAt).toLocaleString()}</span>
+          ${item.approvedAt ? `<span>Approved ${new Date(item.approvedAt).toLocaleString()}</span>` : ""}
+          ${item.dispatchedAt ? `<span>Dispatched ${new Date(item.dispatchedAt).toLocaleString()}</span>` : ""}
+          ${item.completedAt ? `<span>Completed ${new Date(item.completedAt).toLocaleString()}</span>` : ""}
+          ${item.skippedAt ? `<span>Skipped ${new Date(item.skippedAt).toLocaleString()}</span>` : ""}
+        </div>
       </div>
       <div class="record-actions">
-        ${item.status === "recommended" ? `<button class="secondary-button" type="button" data-action="approve" data-id="${item.id}">Approve</button>` : ""}
-        ${item.status === "approved" ? `<button class="primary-button" type="button" data-action="dispatch" data-id="${item.id}">Dispatch</button>` : ""}
-        ${item.status === "dispatched" ? `<button class="primary-button" type="button" data-action="complete" data-id="${item.id}">Complete</button>` : ""}
+        ${item.status === "recommended" ? `<button class="secondary-button" type="button" data-action="approve" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Approve</button>` : ""}
+        ${["recommended", "approved"].includes(item.status) ? `<button class="secondary-button" type="button" data-action="skip" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Skip</button>` : ""}
+        ${item.status === "approved" ? `<button class="primary-button" type="button" data-action="dispatch" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Dispatch</button>` : ""}
+        ${item.status === "dispatched" ? `<label class="completion-control">Completion note
+          <textarea data-completion-note="${item.id}" placeholder="Field result, removal, or disposition" required ${!roleAllows("admin") ? "disabled" : ""}>${escapeHtml(item.completionNotes || "")}</textarea>
+          <button class="primary-button" type="button" data-action="complete" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Complete</button>
+        </label>` : ""}
       </div>
     </article>`).join("") : `<div class="empty-card">No interventions have been generated.</div>`;
   list.querySelectorAll("button[data-action]").forEach(button => {
@@ -678,19 +1123,49 @@ function renderInterventions() {
       if (!item) return;
       if (!requireRole("admin", `${button.dataset.action} an intervention`)) return;
       const previousStatus = item.status;
-      item.status = ({ approve: "approved", dispatch: "dispatched", complete: "completed" })[button.dataset.action];
+      const now = new Date();
+      if (button.dataset.action === "complete") {
+        const completionNotes = list.querySelector(`[data-completion-note="${CSS.escape(item.id)}"]`)?.value.trim();
+        if (!completionNotes) {
+          showNotice("A completion note is required before closing dispatched work.", "error");
+          return;
+        }
+        item.completionNotes = completionNotes;
+      }
+      item.status = ({ approve: "approved", dispatch: "dispatched", complete: "completed", skip: "skipped" })[button.dataset.action];
+      item.transitions ||= [];
+      item.transitions.push({ status: item.status, at: now.toISOString(), actor: `local-${currentRole}` });
+      if (item.status === "approved") item.approvedAt = now.toISOString();
+      if (item.status === "dispatched") item.dispatchedAt = now.toISOString();
+      if (item.status === "skipped") item.skippedAt = now.toISOString();
+      if (item.status === "completed") item.completedAt = now.toISOString();
       recordAudit("intervention_transition", item.id, `${previousStatus} → ${item.status}`);
       if (item.status === "completed" && !state.outcomes.some(outcome => outcome.interventionId === item.id)) {
+        const baselineEnd = new Date(item.dispatchedAt || item.createdAt);
+        const baselineStart = new Date(baselineEnd.getTime() - 7 * 86400000);
+        const postStart = new Date(item.completedAt);
+        const postEnd = new Date(postStart.getTime() + 7 * 86400000);
+        const baselineIssues = state.issues.filter(issue => {
+          const reportedAt = new Date(issue.reportedAt);
+          return issue.zone === item.zone && reportedAt >= baselineStart && reportedAt < baselineEnd;
+        });
         state.outcomes.push({
           id: `OUT-${String(state.outcomes.length + 1).padStart(3, "0")}`,
           interventionId: item.id,
           zone: item.zone,
           strategy: item.strategy,
-          baseline: openIssues().filter(issue => issue.zone === item.zone).length,
+          baseline: baselineIssues.length,
           post: null,
-          baselineWindow: "Trial period before completion",
-          postWindow: "Pending seven-day observation",
-          label: "inconclusive"
+          baselineStart: baselineStart.toISOString(),
+          baselineEnd: baselineEnd.toISOString(),
+          postStart: postStart.toISOString(),
+          postEnd: postEnd.toISOString(),
+          baselineWindow: `${baselineStart.toLocaleDateString()}–${baselineEnd.toLocaleDateString()}`,
+          postWindow: `${postStart.toLocaleDateString()}–${postEnd.toLocaleDateString()} (pending)`,
+          baselineSourceIds: baselineIssues.map(issue => issue.id),
+          completionNotes: item.completionNotes,
+          label: "inconclusive",
+          createdAt: now.toISOString()
         });
       }
       saveState();
@@ -770,6 +1245,8 @@ function renderOutcomes() {
         <span class="badge badge-${item.label === "reduced" ? "completed" : "standard"}">${label(item.label)}</span>
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${reduction === null ? "The post-intervention observation window is not complete." : `${item.baseline} baseline requests compared with ${item.post} afterward—a ${reduction}% reduction.`}</p>
+        ${item.completionNotes ? `<p><strong>Completion evidence:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
+        ${item.baselineSourceIds?.length ? `<p><strong>Baseline records:</strong> ${item.baselineSourceIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : `<p><strong>Baseline records:</strong> none in the defined window.</p>`}
         <div class="record-meta"><span>Baseline: ${escapeHtml(item.baselineWindow)}</span><span>Post-period: ${escapeHtml(item.postWindow)}</span><span>${escapeHtml(item.interventionId)}</span></div>
       </div>
     </article>`;
@@ -970,6 +1447,7 @@ function renderOperationalMap() {
     });
   }
   if (showWatches) {
+    const latestWatchEvent = watchEventAnalysis().latest?.eventContext;
     vehicleWatchLocations.forEach(watch => {
       const point = [watch.lat, watch.lng];
       bounds.push(point);
@@ -980,7 +1458,7 @@ function renderOperationalMap() {
         weight: 2,
         fillColor: "#f4ead3",
         fillOpacity: 0.18
-      }).bindPopup(`<strong>${escapeHtml(watch.name)}</strong><br>${escapeHtml(watch.context)}<br>${escapeHtml(watch.comparison)}`).addTo(operationalMapLayers);
+      }).bindPopup(`<strong>${escapeHtml(watch.name)}</strong><br>${escapeHtml(watch.context)}<br>${escapeHtml(watch.comparison)}${latestWatchEvent ? `<br><strong>${escapeHtml(label(latestWatchEvent.window))}:</strong> ${escapeHtml(latestWatchEvent.event.name)} · ${Math.abs(latestWatchEvent.hoursFromEnd).toFixed(1)}h after estimated end` : ""}`).addTo(operationalMapLayers);
     });
   }
   document.getElementById("mapResultCount").textContent =
@@ -1051,6 +1529,7 @@ async function searchNearAddress(event) {
 function renderPileups() {
   const list = document.getElementById("pileupList");
   document.getElementById("pileupCount").textContent = `${vehicleState.pileups.length} flags`;
+  const eventAnalysis = watchEventAnalysis();
   const watchItems = vehicleWatchLocations.map(location => {
     const nearby = vehicleState.vehicles.filter(vehicle => distanceMeters(vehicle, location) <= location.radius);
     const counts = Object.entries(nearby.reduce((result, vehicle) => {
@@ -1068,8 +1547,17 @@ function renderPileups() {
       : "Longitudinal observations unavailable.";
     const bars = history.map(item => {
       const height = Math.max(8, item.watch_count / Math.max(...historicalCounts, 1) * 42);
-      return `<span style="height:${height}px" title="${escapeHtml(item.snapshot_id)} · ${item.watch_count} vehicles"></span>`;
+      const eventContext = eventContextForTime(snapshotIdToDate(item.snapshot_id));
+      return `<span class="${eventContext ? "event-linked-bar" : ""}" style="height:${height}px" title="${escapeHtml(item.snapshot_id)} · ${item.watch_count} vehicles${eventContext ? ` · ${escapeHtml(label(eventContext.window))}` : ""}"></span>`;
     }).join("");
+    const latestEventContext = eventAnalysis.latest?.eventContext;
+    const eventSummary = latestEventContext ? `
+      <div class="event-context">
+        <strong>${escapeHtml(label(latestEventContext.window))}</strong>
+        <p>${escapeHtml(latestEventContext.event.name)} · snapshot ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after estimated end.</p>
+        <p>${eventAnalysis.eventLinked.length} event-window observation${eventAnalysis.eventLinked.length === 1 ? "" : "s"}; event median ${eventAnalysis.eventMedian ?? "—"} vs. non-event median ${eventAnalysis.baselineMedian ?? "—"}. Association only; more match and non-match observations are required.</p>
+        <a href="${escapeHtml(eventState.source?.url || "#")}" target="_blank" rel="noreferrer">Official schedule</a>
+      </div>` : `<p>No loaded observation falls inside a verified event window.</p>`;
     return `<article class="pileup-item watch-item">
       <span class="badge badge-${crossVendor && nearby.length >= 4 ? "high" : "standard"}">Named watch</span>
       <h3>${escapeHtml(location.name)}</h3>
@@ -1077,6 +1565,7 @@ function renderPileups() {
       <p><strong>${nearby.length} vehicles within ${location.radius} m</strong>${counts.length ? ` · ${counts.map(([company, count]) => `${escapeHtml(company)} ${count}`).join(" · ")}` : ""}</p>
       <p>${crossVendor ? "Cross-vendor presence in this snapshot; review against match end time." : "No cross-vendor condition in this snapshot."}</p>
       <p>${escapeHtml(location.comparison)}</p>
+      ${eventSummary}
       <p><strong>City precedent:</strong> the official September 2025 audit found the Goodale no-parking geofence active on September 19.</p>
       <div class="watch-history" aria-label="Vehicle counts across ${history.length} snapshots">${bars}</div>
       <p><strong>${escapeHtml(historySummary)}</strong></p>
@@ -1407,6 +1896,7 @@ document.getElementById("filters").addEventListener("input", renderQueue);
 document.getElementById("filters").addEventListener("change", renderQueue);
 document.getElementById("roleSelect").value = currentRole;
 document.getElementById("roleSelect").addEventListener("change", event => {
+  if (durableSession.authenticated) return;
   currentRole = event.target.value;
   localStorage.setItem(ROLE_KEY, currentRole);
   showNotice(`Trial role changed to ${label(currentRole)}. This is a local interface control, not production authentication.`);
@@ -1427,6 +1917,22 @@ document.getElementById("openIntake").addEventListener("click", openIntakeDialog
 document.getElementById("closeIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("cancelIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("intakeForm").addEventListener("submit", submitIntake);
+document.getElementById("authButton").addEventListener("click", async () => {
+  if (durableSession.authenticated) {
+    try {
+      await signOutDurableMode();
+    } catch (error) {
+      showNotice(`Sign out failed: ${error.message}`, "error");
+    }
+    return;
+  }
+  document.getElementById("authError").textContent = "";
+  document.getElementById("authDialog").showModal();
+  document.getElementById("authUsername").focus();
+});
+document.getElementById("closeAuth").addEventListener("click", () => document.getElementById("authDialog").close());
+document.getElementById("cancelAuth").addEventListener("click", () => document.getElementById("authDialog").close());
+document.getElementById("authForm").addEventListener("submit", submitAuth);
 document.getElementById("subscriptionForm").addEventListener("submit", submitSubscription);
 document.getElementById("importFile").addEventListener("change", event => {
   const [file] = event.target.files;
@@ -1436,6 +1942,7 @@ document.getElementById("importFile").addEventListener("change", event => {
 document.getElementById("exportData").addEventListener("click", exportTrialData);
 document.getElementById("resetDemo").addEventListener("click", async () => {
   if (!requireRole("admin", "reset local edits")) return;
+  if (!window.confirm("Reset browser-local assignments, statuses, subscriptions, interventions, and outcomes? The verified source snapshot and activity ledger will be preserved.")) return;
   const preservedAudit = [...(state.auditLog || [])];
   state = structuredClone(initialState);
   state.auditLog = preservedAudit;
@@ -1452,5 +1959,9 @@ Promise.all([
   hydrateFromVerifiedSnapshot(),
   hydrateVehiclePositions(),
   hydrateSlaEvidence(),
-  hydrateHistorical311()
-]).finally(renderAll);
+  hydrateHistorical311(),
+  hydrateEvents()
+]).then(initializeDurableMode).finally(() => {
+  renderDurableMode();
+  renderAll();
+});

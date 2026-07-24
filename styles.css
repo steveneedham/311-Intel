@@ -439,6 +439,8 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
 .icon-button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: transparent; cursor: pointer; font-size: 1.35rem; line-height: 1; }
 .form-note { margin: 14px 0 22px; color: var(--muted); font-size: 0.78rem; line-height: 1.5; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.form-grid.single-column { grid-template-columns: 1fr; }
+.auth-dialog { width: min(520px, calc(100vw - 32px)); }
 .form-grid label { display: grid; gap: 6px; color: var(--ink); font-size: 0.74rem; font-weight: 650; }
 .form-grid label span { color: var(--muted); font-size: 0.62rem; font-weight: 500; text-transform: uppercase; }
 .form-grid input, .form-grid select, .form-grid textarea { width: 100%; padding: 10px 11px; border: 1px solid var(--line); color: var(--ink); background: white; font-size: 0.8rem; }

@@ -48,6 +48,15 @@ const teams = ["", "Central response", "North response", "West response", "South
 let state = loadState();
 let selectedIssueId = null;
 let currentRole = localStorage.getItem(ROLE_KEY) || "admin";
+let durableSession = {
+  available: false,
+  authenticated: false,
+  username: "",
+  role: "",
+  csrf: "",
+  version: 0
+};
+let durableSaveQueue = Promise.resolve();
 let vehicleState = { vehicles: [], snapshotId: "", sourceFile: "", pileups: [], watchHistory: [] };
 let operationalMap = null;
 let operationalMapLayers = null;
@@ -90,7 +99,10 @@ function roleAllows(required) {
 
 function requireRole(required, action) {
   if (roleAllows(required)) return true;
-  showNotice(`${label(currentRole)} role cannot ${action}. Switch the trial role to ${label(required)} or higher.`, "error");
+  const direction = durableSession.authenticated
+    ? `An authenticated ${label(required)} is required.`
+    : `Switch the trial role to ${label(required)} or higher.`;
+  showNotice(`${label(currentRole)} role cannot ${action}. ${direction}`, "error");
   return false;
 }
 
@@ -99,7 +111,7 @@ function recordAudit(action, target, detail = "") {
   state.auditLog.push({
     id: `AUD-${crypto.randomUUID()}`,
     at: new Date().toISOString(),
-    actor: `local-${currentRole}`,
+    actor: durableSession.authenticated ? durableSession.username : `local-${currentRole}`,
     role: currentRole,
     action,
     target,
@@ -109,6 +121,177 @@ function recordAudit(action, target, detail = "") {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  if (durableSession.authenticated && roleAllows("operator")) {
+    durableSaveQueue = durableSaveQueue
+      .then(writeDurableState)
+      .catch(error => {
+        console.error("Durable state save failed.", error);
+        showNotice(`Durable save failed: ${error.message}`, "error");
+      });
+  }
+}
+
+async function apiJson(path, options = {}) {
+  const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+  if (options.csrf && durableSession.csrf) headers["X-CSRF-Token"] = durableSession.csrf;
+  const response = await fetch(path, {
+    method: options.method || "GET",
+    headers,
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    cache: "no-store"
+  });
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) throw new Error("Durable service is unavailable.");
+  const payload = await response.json();
+  if (!response.ok) {
+    const error = new Error(payload.error || `Service request failed with ${response.status}`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
+  return payload;
+}
+
+function serverAuditEntries(entries = []) {
+  return entries.map(entry => ({
+    id: `SERVER-AUD-${entry.sequence}`,
+    at: entry.at,
+    actor: entry.actor,
+    role: entry.role,
+    action: entry.action,
+    target: entry.target,
+    detail: entry.detail
+  }));
+}
+
+async function writeDurableState() {
+  try {
+    const result = await apiJson("/api/state", {
+      method: "PUT",
+      csrf: true,
+      body: { version: durableSession.version, state }
+    });
+    durableSession.version = result.version;
+  } catch (error) {
+    if (error.status === 409 && Number.isInteger(error.payload?.version)) {
+      durableSession.version = error.payload.version;
+      throw new Error("another session changed the workflow; reload before saving again");
+    }
+    throw error;
+  }
+}
+
+async function loadDurableState() {
+  const [workflow, audit] = await Promise.all([
+    apiJson("/api/state"),
+    apiJson("/api/audit")
+  ]);
+  durableSession.version = workflow.version;
+  if (workflow.state?.issues) {
+    state = {
+      ...workflow.state,
+      auditLog: serverAuditEntries(audit.entries)
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } else if (roleAllows("operator")) {
+    await writeDurableState();
+  }
+}
+
+function renderDurableMode() {
+  const roleSelect = document.getElementById("roleSelect");
+  const authButton = document.getElementById("authButton");
+  const roleLabel = document.getElementById("roleControlLabel");
+  const persistenceNote = document.getElementById("persistenceNote");
+  const activityNote = document.getElementById("activityStorageNote");
+  authButton.hidden = !durableSession.available;
+  roleSelect.disabled = durableSession.authenticated;
+  roleLabel.textContent = durableSession.authenticated ? "Authenticated role" : "Trial role";
+  authButton.textContent = durableSession.authenticated
+    ? `Sign out ${durableSession.username}`
+    : "Sign in";
+  if (durableSession.authenticated) {
+    persistenceNote.textContent = `Workflow changes are versioned in SQLite as ${durableSession.username}; the Base44 source snapshot remains read-only.`;
+    activityNote.textContent = "Server-side audit entries are append-only and attributed to authenticated identities.";
+  } else {
+    persistenceNote.textContent = "Source snapshot is read-only; assignments and notes stay in this browser.";
+    activityNote.textContent = "Append-only within this browser trial. Sign in through the durable local service for server-enforced storage.";
+  }
+}
+
+async function initializeDurableMode() {
+  try {
+    const session = await apiJson("/api/session");
+    durableSession.available = true;
+    if (session.authenticated) {
+      durableSession = {
+        ...durableSession,
+        authenticated: true,
+        username: session.username,
+        role: session.role,
+        csrf: session.csrf
+      };
+      currentRole = session.role;
+      localStorage.setItem(ROLE_KEY, currentRole);
+      await loadDurableState();
+    }
+  } catch {
+    durableSession.available = false;
+  }
+  document.getElementById("roleSelect").value = currentRole;
+  renderDurableMode();
+}
+
+async function submitAuth(event) {
+  event.preventDefault();
+  const error = document.getElementById("authError");
+  error.textContent = "";
+  try {
+    const session = await apiJson("/api/login", {
+      method: "POST",
+      body: {
+        username: document.getElementById("authUsername").value.trim(),
+        password: document.getElementById("authPassword").value
+      }
+    });
+    durableSession = {
+      available: true,
+      authenticated: true,
+      username: session.username,
+      role: session.role,
+      csrf: session.csrf,
+      version: 0
+    };
+    currentRole = session.role;
+    localStorage.setItem(ROLE_KEY, currentRole);
+    await loadDurableState();
+    document.getElementById("authDialog").close();
+    document.getElementById("authForm").reset();
+    document.getElementById("roleSelect").value = currentRole;
+    renderDurableMode();
+    renderAll();
+    showNotice(`Signed in as ${session.username}. Durable workflow storage is active.`, "success");
+  } catch (authError) {
+    error.textContent = authError.message;
+  }
+}
+
+async function signOutDurableMode() {
+  await apiJson("/api/logout", { method: "POST", csrf: true, body: {} });
+  durableSession = {
+    available: true,
+    authenticated: false,
+    username: "",
+    role: "",
+    csrf: "",
+    version: 0
+  };
+  currentRole = "viewer";
+  localStorage.setItem(ROLE_KEY, currentRole);
+  document.getElementById("roleSelect").value = currentRole;
+  renderDurableMode();
+  renderAll();
+  showNotice("Signed out. Durable records remain on the server; local trial controls are available in Viewer mode.");
 }
 
 function showNotice(message, tone = "") {
@@ -128,6 +311,76 @@ function normalizedPriority(record) {
   return "standard";
 }
 
+function sourceNarrative(record) {
+  const description = String(record.description || "").trim();
+  if (description) return description;
+  const descriptor = String(record.descriptor || "").trim();
+  return /^shared electric bike\s*&\s*scooters$/i.test(descriptor) ? "" : descriptor;
+}
+
+function classifyComplaint(record) {
+  const narrative = sourceNarrative(record);
+  const rules = [
+    { type: "ADA ramp", pattern: /\b(ada|wheelchair|curb (?:cut|ramp)|accessibility|tactile)\b/i, rule: "accessibility or curb-ramp keyword" },
+    { type: "Business entrance", pattern: /\b(entrance|doorway|driveway|exit)\b/i, rule: "entrance or driveway keyword" },
+    { type: "Pile-up", pattern: /\b(pile[\s-]?up|cluster|stack(?:ed|ing)?|multiple|several|group of)\b/i, rule: "multi-vehicle concentration keyword" },
+    { type: "Abandoned", pattern: /\b(abandon(?:ed)?|damaged|broken|discarded)\b/i, rule: "abandoned or damaged-device keyword" },
+    { type: "No-ride zone", pattern: /\b(no[\s-]?ride|geofence|riding through|pedestrian plaza)\b/i, rule: "riding or geofence keyword" },
+    { type: "Sidewalk block", pattern: /\b(sidewalk|pedestrian path|walkway|blocking|obstruct(?:ed|ion|ing)?)\b/i, rule: "pedestrian-path obstruction keyword" }
+  ];
+  const match = narrative ? rules.find(rule => rule.pattern.test(narrative)) : null;
+  if (match) {
+    return {
+      type: match.type,
+      confidence: "rule-matched",
+      evidence: `Matched ${match.rule} in the supplied narrative.`
+    };
+  }
+  const sourceType = String(record.complaint_type || record.type || "other");
+  return {
+    type: label(sourceType),
+    confidence: "source-label",
+    evidence: narrative
+      ? `No classification keyword matched; retained source label “${label(sourceType)}”.`
+      : `Retained source label “${label(sourceType)}”; the export contains no complaint narrative to classify.`
+  };
+}
+
+function attributeOperator(record, sourceId) {
+  const override = operatorEvidenceOverrides[sourceId];
+  if (override) return override;
+  const sourceOperator = String(record.operator || "").trim();
+  if (/^(veo|spin)$/i.test(sourceOperator)) {
+    const operator = sourceOperator.toLowerCase() === "veo" ? "Veo" : "Spin";
+    return {
+      operator,
+      confidence: "source-provided",
+      evidence: `The source record identifies ${operator}.`,
+      sourceUrl: ""
+    };
+  }
+  const narrative = sourceNarrative(record);
+  const mentionsVeo = /\bveo\b/i.test(narrative);
+  const mentionsSpin = /\bspin\b/i.test(narrative);
+  if (mentionsVeo !== mentionsSpin) {
+    const operator = mentionsVeo ? "Veo" : "Spin";
+    return {
+      operator,
+      confidence: "description-keyword",
+      evidence: `The supplied narrative explicitly names ${operator}; field or photo verification is still recommended.`,
+      sourceUrl: ""
+    };
+  }
+  return {
+    operator: "unknown",
+    confidence: mentionsVeo && mentionsSpin ? "ambiguous" : "unattributed",
+    evidence: mentionsVeo && mentionsSpin
+      ? "The narrative names both vendors, so no single operator was assigned."
+      : "Neither the source operator field nor the supplied narrative identifies a vendor.",
+    sourceUrl: ""
+  };
+}
+
 function normalizeImportedIssue(record) {
   const sourceId = record.source_id || record.id;
   const reportedAt = record.reported_at || record.reportedAt;
@@ -140,20 +393,23 @@ function normalizeImportedIssue(record) {
   const status = ["received", "assigned", "in_progress", "resolved"].includes(rawStatus)
     ? rawStatus
     : rawStatus === "closed" ? "resolved" : "received";
-  const operatorEvidence = operatorEvidenceOverrides[sourceId] || null;
+  const classification = classifyComplaint(record);
+  const operatorEvidence = attributeOperator(record, sourceId);
   return {
     id: String(sourceId),
-    type: label(record.complaint_type || record.type || "other"),
+    type: classification.type,
+    classificationConfidence: classification.confidence,
+    classificationEvidence: classification.evidence,
     descriptor: String(record.descriptor || record.description || "No source description supplied"),
     address: String(record.address),
     zone: String(record.zone_id || record.zone || "Unassigned zone").replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase()),
-    operator: operatorEvidence?.operator || String(record.operator || "unknown"),
-    operatorConfidence: operatorEvidence?.confidence || (record.operator && record.operator !== "unknown" ? "source-provided" : "unattributed"),
-    operatorEvidence: operatorEvidence?.evidence || "",
-    sourceUrl: operatorEvidence?.sourceUrl || "",
+    operator: operatorEvidence.operator,
+    operatorConfidence: operatorEvidence.confidence,
+    operatorEvidence: operatorEvidence.evidence,
+    sourceUrl: operatorEvidence.sourceUrl || "",
     reportedAt: new Date(reportedAt).toISOString(),
     status,
-    priority: normalizedPriority(record),
+    priority: normalizedPriority({ ...record, complaint_type: classification.type }),
     team: String(record.team || record.assigned_team || ""),
     notes: String(record.notes || ""),
     lat: latitude,
@@ -475,10 +731,16 @@ function submitIntake(event) {
   const issue = {
     id: sourceId,
     type,
+    classificationConfidence: "operator-selected",
+    classificationEvidence: `Complaint type selected by ${durableSession.authenticated ? durableSession.username : `local-${currentRole}`} during intake.`,
     descriptor: document.getElementById("intakeDescriptor").value.trim() || "No source description supplied",
     address: document.getElementById("intakeAddress").value.trim(),
     zone: document.getElementById("intakeZone").value.trim(),
     operator: document.getElementById("intakeOperator").value,
+    operatorConfidence: document.getElementById("intakeOperator").value === "unknown" ? "unattributed" : "operator-selected",
+    operatorEvidence: document.getElementById("intakeOperator").value === "unknown"
+      ? "No operator was identified during intake."
+      : `Operator selected during intake; source or photo verification remains recommended.`,
     reportedAt: new Date(document.getElementById("intakeReportedAt").value).toISOString(),
     status: "received",
     priority: normalizedPriority({ type }),
@@ -504,7 +766,7 @@ function escapeHtml(value = "") {
 }
 
 function label(value = "") {
-  return value.replaceAll("_", " ").replace(/\b\w/g, letter => letter.toUpperCase());
+  return value.replace(/[_-]/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
 }
 
 function ageInHours(date) {
@@ -624,8 +886,11 @@ function renderDetail() {
     <dl class="evidence">
       <div><dt>Source evidence</dt><dd>${escapeHtml(issue.descriptor)}</dd></div>
       <div><dt>Reported</dt><dd>${new Date(issue.reportedAt).toLocaleString()}</dd></div>
+      <div><dt>Classification</dt><dd>${escapeHtml(label(issue.classificationConfidence || "trial fixture"))}</dd></div>
+      <div><dt>Classification evidence</dt><dd>${escapeHtml(issue.classificationEvidence || "Local trial fixture; no automated classification claim.")}</dd></div>
       <div><dt>Operator</dt><dd>${escapeHtml(issue.operator)}</dd></div>
       <div><dt>Attribution</dt><dd>${escapeHtml(label(issue.operatorConfidence || "unattributed"))}</dd></div>
+      <div><dt>Attribution evidence</dt><dd>${escapeHtml(issue.operatorEvidence || "No operator evidence is available.")}</dd></div>
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
     </dl>
     ${issue.operatorEvidence ? `<div class="operator-evidence"><strong>Photo evidence</strong><p>${escapeHtml(issue.operatorEvidence)}</p>${issue.sourceUrl ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open official request and photographs</a>` : ""}</div>` : ""}
@@ -1631,6 +1896,7 @@ document.getElementById("filters").addEventListener("input", renderQueue);
 document.getElementById("filters").addEventListener("change", renderQueue);
 document.getElementById("roleSelect").value = currentRole;
 document.getElementById("roleSelect").addEventListener("change", event => {
+  if (durableSession.authenticated) return;
   currentRole = event.target.value;
   localStorage.setItem(ROLE_KEY, currentRole);
   showNotice(`Trial role changed to ${label(currentRole)}. This is a local interface control, not production authentication.`);
@@ -1651,6 +1917,22 @@ document.getElementById("openIntake").addEventListener("click", openIntakeDialog
 document.getElementById("closeIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("cancelIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("intakeForm").addEventListener("submit", submitIntake);
+document.getElementById("authButton").addEventListener("click", async () => {
+  if (durableSession.authenticated) {
+    try {
+      await signOutDurableMode();
+    } catch (error) {
+      showNotice(`Sign out failed: ${error.message}`, "error");
+    }
+    return;
+  }
+  document.getElementById("authError").textContent = "";
+  document.getElementById("authDialog").showModal();
+  document.getElementById("authUsername").focus();
+});
+document.getElementById("closeAuth").addEventListener("click", () => document.getElementById("authDialog").close());
+document.getElementById("cancelAuth").addEventListener("click", () => document.getElementById("authDialog").close());
+document.getElementById("authForm").addEventListener("submit", submitAuth);
 document.getElementById("subscriptionForm").addEventListener("submit", submitSubscription);
 document.getElementById("importFile").addEventListener("change", event => {
   const [file] = event.target.files;
@@ -1660,6 +1942,7 @@ document.getElementById("importFile").addEventListener("change", event => {
 document.getElementById("exportData").addEventListener("click", exportTrialData);
 document.getElementById("resetDemo").addEventListener("click", async () => {
   if (!requireRole("admin", "reset local edits")) return;
+  if (!window.confirm("Reset browser-local assignments, statuses, subscriptions, interventions, and outcomes? The verified source snapshot and activity ledger will be preserved.")) return;
   const preservedAudit = [...(state.auditLog || [])];
   state = structuredClone(initialState);
   state.auditLog = preservedAudit;
@@ -1678,4 +1961,7 @@ Promise.all([
   hydrateSlaEvidence(),
   hydrateHistorical311(),
   hydrateEvents()
-]).finally(renderAll);
+]).then(initializeDurableMode).finally(() => {
+  renderDurableMode();
+  renderAll();
+});

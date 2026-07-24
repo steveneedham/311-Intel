@@ -49,6 +49,50 @@ try {
   check(await page.locator("#issueRows tr").count() === 8, "open queue shows eight unresolved snapshot records");
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
+  await page.locator("#issueRows tr[data-id]").first().click();
+  const sourceOnlyDetail = await page.locator("#detailPanel").innerText();
+  check(sourceOnlyDetail.includes("Source Label") && sourceOnlyDetail.includes("no complaint narrative"), "source-only classification boundary is visible");
+  check(sourceOnlyDetail.includes("Unattributed") && sourceOnlyDetail.includes("Neither the source operator field"), "unknown operator evidence is visible");
+  const transparentRules = await page.evaluate(() => {
+    const normalized = normalizeImportedIssue({
+      source_id: "CAS-RULE-TEST",
+      complaint_type: "other",
+      description: "Orange Spin scooters blocking wheelchair curb ramp",
+      address: "100 TEST ST",
+      zone_id: "test",
+      operator: "unknown",
+      reported_at: "2026-07-23T12:00:00Z",
+      status: "received",
+      latitude: 39.96,
+      longitude: -83
+    });
+    const ambiguous = normalizeImportedIssue({
+      source_id: "CAS-AMBIGUOUS-TEST",
+      complaint_type: "sidewalk_block",
+      description: "Veo and Spin devices are grouped on the sidewalk",
+      address: "200 TEST ST",
+      zone_id: "test",
+      operator: "unknown",
+      reported_at: "2026-07-23T12:00:00Z",
+      status: "received",
+      latitude: 39.96,
+      longitude: -83
+    });
+    return {
+      type: normalized.type,
+      classificationConfidence: normalized.classificationConfidence,
+      classificationEvidence: normalized.classificationEvidence,
+      operator: normalized.operator,
+      operatorConfidence: normalized.operatorConfidence,
+      operatorEvidence: normalized.operatorEvidence,
+      ambiguousOperator: ambiguous.operator,
+      ambiguousConfidence: ambiguous.operatorConfidence
+    };
+  });
+  check(transparentRules.type === "ADA ramp" && transparentRules.classificationConfidence === "rule-matched", "narrative classification applies an inspectable accessibility rule");
+  check(transparentRules.classificationEvidence.includes("curb-ramp keyword"), "classification evidence names the matched rule");
+  check(transparentRules.operator === "Spin" && transparentRules.operatorConfidence === "description-keyword", "explicit vendor name produces reviewable operator attribution");
+  check(transparentRules.ambiguousOperator === "unknown" && transparentRules.ambiguousConfidence === "ambiguous", "multi-vendor narrative is not forced to one operator");
 
   await page.locator('[data-view="trends"]').click();
   const trendText = await page.locator("#trends").innerText();

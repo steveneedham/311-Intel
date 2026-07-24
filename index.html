@@ -27,13 +27,14 @@
     </div>
     <div class="masthead-meta">
       <span class="live-mark" id="dataMode"><span></span> Local trial</span>
-      <label class="role-control">Trial role
+      <label class="role-control"><span id="roleControlLabel">Trial role</span>
         <select id="roleSelect">
           <option value="viewer">Viewer</option>
           <option value="operator">Operator</option>
           <option value="admin">Administrator</option>
         </select>
       </label>
+      <button class="quiet-button" id="authButton" type="button" hidden>Sign in</button>
       <label class="quiet-button file-button">
         Import JSON
         <input id="importFile" type="file" accept="application/json,.json">
@@ -65,7 +66,7 @@
           <h2 id="operations-title">Resolve what needs attention now</h2>
         </div>
         <div class="section-actions">
-          <p class="section-note">Source snapshot is read-only; assignments and notes stay in this browser.</p>
+          <p class="section-note" id="persistenceNote">Source snapshot is read-only; assignments and notes stay in this browser.</p>
           <button class="primary-button" id="openIntake" type="button">Add request</button>
         </div>
       </div>
@@ -411,7 +412,7 @@
           <p class="eyebrow">Local accountability</p>
           <h2 id="activity-title">Operational activity ledger</h2>
         </div>
-        <p class="section-note">Append-only within this browser trial. Production use still requires authenticated identities and server-enforced immutable storage.</p>
+        <p class="section-note" id="activityStorageNote">Append-only within this browser trial. Production use still requires authenticated identities and server-enforced immutable storage.</p>
       </div>
       <div class="activity-ledger" id="activityLedger"></div>
     </section>
@@ -472,6 +473,32 @@
       <div class="dialog-actions">
         <button class="secondary-button" id="cancelIntake" type="button">Cancel</button>
         <button class="primary-button" type="submit">Add to queue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="intake-dialog auth-dialog" id="authDialog" aria-labelledby="auth-title">
+    <form class="intake-form" id="authForm">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">Durable operations</p>
+          <h2 id="auth-title">Sign in</h2>
+        </div>
+        <button class="icon-button" id="closeAuth" type="button" aria-label="Close sign-in form">×</button>
+      </div>
+      <p class="form-note">Credentials are verified by the local service. The session cookie is HTTP-only, and write requests require a session-specific CSRF token.</p>
+      <div class="form-grid single-column">
+        <label>Username
+          <input id="authUsername" autocomplete="username" required>
+        </label>
+        <label>Password
+          <input id="authPassword" type="password" autocomplete="current-password" required>
+        </label>
+      </div>
+      <p class="form-error" id="authError" role="alert"></p>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancelAuth" type="button">Cancel</button>
+        <button class="primary-button" type="submit">Sign in</button>
       </div>
     </form>
   </dialog>
