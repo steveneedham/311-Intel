@@ -30,14 +30,15 @@ def epoch_milliseconds_to_iso(value):
 
 
 def query_url():
-    return f"{SERVICE_URL}?{urlencode({
-        'where': f\"REQUEST_TYPE = '{REQUEST_TYPE}'\",
-        'outFields': OUT_FIELDS,
-        'returnGeometry': 'true',
-        'outSR': '4326',
-        'orderByFields': 'REPORTED_DATE DESC',
-        'f': 'json',
-    })}"
+    parameters = {
+        "where": f"REQUEST_TYPE = '{REQUEST_TYPE}'",
+        "outFields": OUT_FIELDS,
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "orderByFields": "REPORTED_DATE DESC",
+        "f": "json",
+    }
+    return f"{SERVICE_URL}?{urlencode(parameters)}"
 
 
 def fetch_payload(timeout=30):
