@@ -105,6 +105,7 @@ try {
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => document.getElementById("roleSelect")?.disabled);
+  await page.locator('[data-view="operations"]').click();
   await page.locator(`#issueRows tr[data-id="${requestId}"]`).click();
   check(await page.locator("#notesInput").inputValue() === "Durable acceptance field note.", "durable request update survives reload");
   check(await page.locator("#crossReferenceSummaryInput").inputValue() === "Spin scooter blocks the ADA curb ramp at the reported intersection.", "verified cross-reference evidence survives reload");
