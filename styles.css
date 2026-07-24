@@ -89,6 +89,29 @@ button, select, input, textarea { touch-action: manipulation; }
   letter-spacing: 0.15em;
 }
 
+.service-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.015em;
+}
+
+.demo-label {
+  display: inline-flex;
+  margin: 13px 0 0;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.66);
+  color: white;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
 .prototype-label {
   max-width: 560px;
   margin: 10px 0 0;
@@ -96,6 +119,8 @@ button, select, input, textarea { touch-action: manipulation; }
   font-size: 0.7rem;
   line-height: 1.4;
 }
+
+.prototype-label a { color: white; text-underline-offset: 3px; }
 
 .eyebrow {
   margin-bottom: 8px;
