@@ -311,9 +311,14 @@ try {
   await page.locator("#roleSelect").selectOption("admin");
   await page.locator(`[data-action="approve"][data-id="${interventionId}"]`).click();
   await page.locator(`[data-action="dispatch"][data-id="${interventionId}"]`).click();
+  check(await page.locator(`[data-vendor-response][data-id="${interventionId}"]`).count() === 4, "dispatch requests an accept-or-acknowledge response from both unattributed vendors");
   await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
   check((await page.locator("#dataNotice").innerText()).includes("completion note is required"), "completion without evidence is rejected");
   await page.locator(`[data-completion-note="${interventionId}"]`).fill("Field team verified the obstruction was cleared.");
+  await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
+  check((await page.locator("#dataNotice").innerText()).includes("Vendor response required from Spin and Veo"), "completion waits for every dispatched vendor");
+  await page.locator(`[data-vendor-response="acknowledged"][data-vendor="Spin"][data-id="${interventionId}"]`).click();
+  await page.locator(`[data-vendor-response="accepted"][data-vendor="Veo"][data-id="${interventionId}"]`).click();
   await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
   const lifecycle = await page.evaluate(id => {
     const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
@@ -323,6 +328,11 @@ try {
     };
   }, interventionId);
   check(lifecycle.intervention.status === "completed", "intervention reaches completed state");
+  check(
+    lifecycle.intervention.vendorResponses.Spin.status === "acknowledged" &&
+    lifecycle.intervention.vendorResponses.Veo.status === "accepted",
+    "each dispatched vendor response is preserved"
+  );
   check(lifecycle.intervention.transitions.map(item => item.status).join(",") === "recommended,approved,dispatched,completed", "all lifecycle transitions are recorded");
   check(Boolean(lifecycle.outcome?.baselineStart && lifecycle.outcome?.postEnd), "completion creates explicit outcome windows");
 
