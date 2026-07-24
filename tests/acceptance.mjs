@@ -338,18 +338,33 @@ try {
 
   await page.locator("#openIntervention").click();
   await page.locator("#interventionTypeInput").selectOption("policy");
+  await page.locator("#interventionCadenceInput").selectOption("rule_policy_change");
   await page.locator("#interventionZoneInput").fill("Harrison West");
   await page.locator("#interventionStrategyInput").fill("Mandatory parking in this area");
   await page.locator("#interventionRationaleInput").fill("Repeated sidewalk-blocking requests support a longer-term designated-parking intervention.");
+  await page.locator("#interventionStartInput").fill("2026-08-01");
+  await page.locator("#interventionEndInput").fill("2026-11-01");
+  await page.locator("#interventionLatitudeInput").fill("39.9791");
+  await page.locator("#interventionLongitudeInput").fill("-83.0172");
+  await page.locator("#interventionRadiusInput").fill("400");
   await page.locator('#interventionForm button[type="submit"]').click();
   const policyIntervention = await page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
     return state.interventions.find(item => item.strategy === "Mandatory parking in this area");
   });
-  check(policyIntervention?.interventionType === "policy" && policyIntervention.targetVendors.length === 2, "long-term policy intervention preserves its type and responding vendors");
+  check(
+    policyIntervention?.interventionType === "policy" &&
+    policyIntervention.cadence === "rule_policy_change" &&
+    policyIntervention.targetVendors.length === 2 &&
+    policyIntervention.mapArea.radiusMeters === 400 &&
+    policyIntervention.timeframeEnd === "2026-11-01",
+    "rule or policy intervention preserves its cadence, map area, timeframe, and responding vendors"
+  );
 
   await page.locator("#openIntervention").click();
   await page.locator("#interventionTypeInput").selectOption("experiment");
+  await page.locator("#interventionCadenceInput").selectOption("repeating");
+  await page.locator("#interventionRecurrenceInput").fill("Daily during the two-week test window");
   await page.locator("#interventionZoneInput").fill("Harrison West");
   await page.locator("#interventionStrategyInput").fill("Two-week mandatory-parking experiment");
   await page.locator("#interventionRationaleInput").fill("Test whether a defined parking rule reduces repeat obstruction signals before permanent adoption.");
@@ -357,6 +372,9 @@ try {
   await page.locator("#interventionSuccessMeasureInput").fill("At least 25% fewer independent 311 requests");
   await page.locator("#interventionStartInput").fill("2026-08-01");
   await page.locator("#interventionEndInput").fill("2026-08-15");
+  await page.locator("#interventionLatitudeInput").fill("39.9791");
+  await page.locator("#interventionLongitudeInput").fill("-83.0172");
+  await page.locator("#interventionRadiusInput").fill("250");
   await page.locator('#interventionForm button[type="submit"]').click();
   const experimentIntervention = await page.evaluate(() => {
     const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
@@ -364,12 +382,19 @@ try {
   });
   check(
     experimentIntervention?.interventionType === "experiment" &&
+    experimentIntervention.cadence === "repeating" &&
+    experimentIntervention.recurrence.includes("Daily") &&
+    experimentIntervention.mapArea.radiusMeters === 250 &&
     experimentIntervention.hypothesis.includes("reduce independent") &&
     experimentIntervention.successMeasure.includes("25%") &&
     experimentIntervention.plannedStart === "2026-08-01" &&
     experimentIntervention.plannedEnd === "2026-08-15",
-    "experiment preserves its hypothesis, measure, and planned window"
+    "experiment preserves its cadence, map area, hypothesis, measure, and planned window"
   );
+  await page.locator('[data-view="map"]').click();
+  check(await page.locator("#mapInterventionsToggle").isChecked(), "intervention areas are enabled on the operational map");
+  check(await page.locator(".intervention-area-layer").count() >= 2, "active interventions render as defined map areas");
+  check((await page.locator("#mapResultCount").innerText()).includes("intervention areas"), "map summary counts active intervention areas");
 
   await page.locator('[data-view="site-metrics"]').click();
   const metricsText = await page.locator("#site-metrics").innerText();
