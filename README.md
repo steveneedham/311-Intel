@@ -8,7 +8,10 @@ available data proves.
 
 ## What is verified
 
-- 104 complaint records load from a preserved Base44 export.
+- The current City of Columbus 30-day public feed contributes 137 deduplicated
+  complaint records. All 104 IDs from the preserved Base44 export remain
+  present; 33 newer City-only records are added without overwriting local
+  ownership, notes, evidence review, or lifecycle state.
 - New local JSON records are normalized, deduplicated by source ID, and shown
   in the queue. Invalid records are excluded and retained in a correction
   review containing only their source identifier and validation reasons.
@@ -63,12 +66,13 @@ available data proves.
 
 ## What is not live
 
-This build does not claim live Columbus ingestion, production identity-provider
-integration, TLS termination, email/SMS delivery, deployed scheduling, or
-automatic vendor enforcement. OneView matching is a human-reviewed lookup, not
-an undocumented scraper or API integration. The included authenticated service
-and opt-in scheduler are intended for controlled local evaluation. Base44 and
-GitHub are not modified by running the trial.
+The browser fallback loads a committed City feed snapshot. The authenticated
+service includes an optional read-only City refresh, but no production host or
+scheduled runtime has been deployed or verified. This build also does not claim
+production identity-provider integration, TLS termination, email/SMS delivery,
+or automatic vendor enforcement. OneView matching is a human-reviewed lookup,
+not an undocumented scraper or API integration. Base44 and GitHub are not
+modified by running the trial.
 
 ## Run locally
 
@@ -111,6 +115,18 @@ lifecycle status, and severity as a unique key, so an unchanged condition is
 not delivered twice. Authenticated users can inspect recent runs in Activity;
 only an Administrator can trigger a manual verification run.
 
+To include a read-only refresh of the official City 311 public feed in each
+scheduler cycle, add:
+
+```bash
+APP_ENABLE_CITY_SYNC=1
+```
+
+The refresh may update City-owned source facts and add newly published cases,
+but it preserves every existing local lifecycle state, assigned team, note,
+evidence review, and intervention workflow. City source status, OneView status,
+and the app's operational status remain separate fields.
+
 For the browser-only fallback:
 
 ```bash
@@ -144,8 +160,21 @@ SQLite persistence across reload, audit attribution, and inspectable workflow
 runs. Standard-library tests cover API authorization, CSRF, optimistic
 concurrency, Administrator-only evidence/intervention/workflow actions,
 recurring scheduled runs, alert deduplication, append-only audit/run
-protection, deterministic GBFS refresh behavior, and policy-boundary selection
-and proximity calculations.
+protection, read-only City-feed normalization and idempotent workflow-preserving
+merges, deterministic GBFS refresh behavior, and policy-boundary selection and
+proximity calculations.
+
+## Refresh current Columbus 311 evidence
+
+```bash
+npm run refresh:311
+```
+
+This command reads the official City of Columbus ArcGIS service for the
+`Shared Electric Bike & Scooters` request type and rebuilds
+`columbus-311-current.json`. It performs no write to the City system or
+Base44. Invalid rows are excluded from the operational payload and retained as
+source-ID-plus-reason review entries.
 
 ## Refresh archived GBFS evidence
 
@@ -158,6 +187,27 @@ snapshot archive, rebuilds the current position payload, and recomputes the
 complete Goodale/Olentangy history. Set `GBFS_SNAPSHOT_ROOT` or pass
 `--snapshot-root` when the archive lives elsewhere. Invalid rows are counted
 and surfaced in the generated metadata instead of being silently accepted.
+
+## Collect around major events
+
+Run the collector every five minutes from one scheduler instance:
+
+```bash
+python3 event_gbfs_runner.py \
+  --notebook /absolute/path/to/Veo_Spin_CBS_GBFS_Extract.ipynb
+```
+
+The runner reads `external-events.json` and executes the notebook once 30
+minutes before kickoff and once 30 minutes after the estimated end of each
+scheduled event. A 10-minute tolerance supports a five-minute cron or platform
+scheduler, and `event-gbfs-runs.json` prevents duplicate execution. Event types
+are not hard-coded, so verified soccer, football, concert, or other major-event
+records can use the same contract. Use `--dry-run` to inspect a due window
+without executing the notebook.
+
+The notebook is intentionally not bundled in this app checkout. Pass its
+absolute path on the collection host. Successful execution requires
+Jupyter/nbconvert in that host's Python environment.
 
 ## Evidence boundaries
 

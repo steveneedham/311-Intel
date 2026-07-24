@@ -81,7 +81,7 @@ let operationalMapSearchLayer = null;
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
-let workflowState = { enabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
+let workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
 let policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "loading" };
 const vehicleWatchLocations = [
   {
@@ -207,6 +207,7 @@ async function loadDurableState() {
   ]);
   workflowState = {
     enabled: workflows.enabled,
+    citySyncEnabled: workflows.city_sync_enabled,
     intervalSeconds: workflows.interval_seconds,
     runs: workflows.runs || [],
     deliveryCount: workflows.delivery_count || 0,
@@ -313,7 +314,7 @@ async function signOutDurableMode() {
     csrf: "",
     version: 0
   };
-  workflowState = { enabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
+  workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
   currentRole = "viewer";
   localStorage.setItem(ROLE_KEY, currentRole);
   document.getElementById("roleSelect").value = currentRole;
@@ -334,6 +335,7 @@ async function runServerWorkflows() {
     const workflows = await apiJson("/api/workflows");
     workflowState = {
       enabled: workflows.enabled,
+      citySyncEnabled: workflows.city_sync_enabled,
       intervalSeconds: workflows.interval_seconds,
       runs: workflows.runs || [],
       deliveryCount: workflows.delivery_count || 0,
@@ -657,6 +659,9 @@ async function hydrateFromCityFeed() {
     state.cityFeedFetchedAt = feed.fetched_at || "";
     state.cityFeedRecordCount = records.length;
     state.importReview ||= [];
+    state.importReview = state.importReview.filter(
+      item => !String(item.id || "").startsWith("city-feed-")
+    );
     const feedReview = Array.isArray(feed.review) ? feed.review : [];
     feedReview.forEach((item, index) => {
       state.importReview.push({
@@ -1738,8 +1743,8 @@ function renderActivity() {
   const recentRuns = workflowState.runs.slice(0, 6);
   workflowList.innerHTML = durableSession.authenticated ? `
     <p class="section-note">${workflowState.enabled
-      ? `Scheduler enabled · every ${workflowState.intervalSeconds} seconds · ${workflowState.deliveryCount} deduplicated delivery states stored`
-      : `Scheduler disabled · ${workflowState.deliveryCount} deduplicated delivery states stored · Administrator may run a local verification manually`}</p>
+      ? `Scheduler enabled · every ${workflowState.intervalSeconds} seconds · City 311 sync ${workflowState.citySyncEnabled ? "enabled" : "disabled"} · ${workflowState.deliveryCount} deduplicated delivery states stored`
+      : `Scheduler disabled · City 311 sync ${workflowState.citySyncEnabled ? "enabled for manual runs" : "disabled"} · ${workflowState.deliveryCount} deduplicated delivery states stored · Administrator may run a local verification manually`}</p>
     <div class="workflow-run-grid">${recentRuns.length ? recentRuns.map(run => `
       <article class="workflow-run">
         <span class="badge badge-${run.status === "success" ? "completed" : run.status === "failed" ? "critical" : "standard"}">${escapeHtml(label(run.status))}</span>
@@ -1747,7 +1752,9 @@ function renderActivity() {
         <p>${new Date(run.completed_at).toLocaleString()} · ${escapeHtml(run.trigger)}</p>
         <p>${run.workflow === "daily_brief"
           ? `${run.output.new_request_count ?? 0} new · ${run.output.unresolved_critical_count ?? 0} critical · ${run.output.dispatched_intervention_count ?? 0} dispatched`
-          : `${run.output.new_delivery_count ?? 0} new delivery states · ${run.output.deduplicated_state_count ?? 0} unchanged states suppressed`}</p>
+          : run.workflow === "city_311_sync"
+            ? `${run.output.source_records ?? 0} source records · ${run.output.added ?? 0} added · ${run.output.updated ?? 0} refreshed · ${run.output.invalid ?? 0} invalid`
+            : `${run.output.new_delivery_count ?? 0} new delivery states · ${run.output.deduplicated_state_count ?? 0} unchanged states suppressed`}</p>
       </article>`).join("") : `<div class="empty-card">No workflow runs recorded yet.</div>`}</div>` : "";
   const ledger = document.getElementById("activityLedger");
   const entries = (state.auditLog || []).toReversed();

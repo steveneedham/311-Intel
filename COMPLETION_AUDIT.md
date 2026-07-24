@@ -7,6 +7,10 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 
 - The application loads a read-only export of 104 records from Base44 app
   `6a614b54abec07520930dbea`.
+- A read-only query of the official City of Columbus 30-day ArcGIS feed
+  returned 137 unique shared-mobility requests with zero invalid or duplicate
+  rows. All 104 Base44 IDs are present in that feed and 33 City-only records
+  are added to the queue.
 - The verified snapshot contains 8 open and 96 resolved complaints.
 - Base44 records were not modified while building or testing the local app.
 - Browser validation found no console errors.
@@ -151,7 +155,7 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   dispatched, and completed it. Completion without a note was rejected.
   `OUT-002` was then created with explicit windows and evidence. A second
   recommendation, `INT-004`, proved the skipped path and created no outcome.
-- The packaged `npm test` browser acceptance suite passed all 66 checks on
+- The packaged `npm test` browser acceptance suite passed all 67 checks on
   2026-07-23. It starts an isolated local server, uses a disposable browser
   profile and fixture, and verifies source hydration, GA4 configuration,
   complete queue filters, invalid-import review, OneView lookup and evidence
@@ -180,7 +184,10 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   tests proved anonymous reads are rejected, Operator changes are limited to
   request workflow fields and new recommendations, Administrator permission is
   required for source evidence and approval, stale versions return conflict,
-  CSRF is enforced, and audit rows cannot be deleted.
+  CSRF is enforced, and audit rows cannot be deleted. The durable boundary also
+  rejects duplicate request IDs, missing intake fields, invalid dates or
+  coordinates, Operator changes to protected top-level sections, alert-rule
+  deletion or retargeting, and edits to append-only alert delivery history.
 - Complaint classification and operator attribution now expose their evidence
   in request detail. A deterministic fixture containing “Spin” and “wheelchair
   curb ramp” produced `ADA concern` and `reported-claim` until a supporting
@@ -192,14 +199,21 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   `unknown` operator unless photo-confirmed. The interface explains that
   evidence boundary instead of inventing specificity.
 - The durable service now includes an opt-in scheduler for `daily_brief` and
-  `alert_evaluation`. Each cycle writes append-only run records; server alert
-  states are unique by subscription, request, lifecycle status, and severity.
+  `alert_evaluation`, plus an independently opt-in `city_311_sync`. Each cycle
+  writes append-only run records; server alert states are unique by
+  subscription, request, lifecycle status, and severity.
   Two consecutive scheduled test cycles produced successful runs: the first
   created the matching delivery state and the second suppressed it as
   unchanged. An Operator received 403 for manual execution, while an
   authenticated Administrator successfully ran both workflows. Activity shows
   the enabled state, interval, recent statuses, summary counts, and the
   explicit disabled/local-evaluation boundary.
+- The City sync reads only the official public ArcGIS endpoint. A deterministic
+  service test refreshed City-owned source fields for an existing request while
+  preserving its local `assigned` lifecycle, response team, and operator note;
+  added one new request; and proved a second identical run created no duplicate,
+  state version, or audit entry. Source status remains separate from OneView and
+  operational lifecycle status.
 - A read-only Base44 sandbox capability check against app
   `6a614b54abec07520930dbea` returned `The sandbox-bridge tools are not
   available for this app type.` No builder prompt or mutating call was made.
@@ -213,23 +227,28 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
   temporary port and verified to report SQLite storage, enabled scheduling,
   the configured interval, and CSP/frame/referrer/permissions headers through
   `/api/health`.
+- An optional event-window runner reads the dated external-event schedule and
+  defines one notebook execution 30 minutes before kickoff and one 30 minutes
+  after estimated event end. Three deterministic tests prove its window
+  calculations, expired-window handling, and exactly-once state. The collection
+  notebook and external scheduler are not present or claimed as deployed.
 
 ## Acceptance-test audit
 
 | # | Requirement | Status | Evidence or gap |
 |---|---|---|---|
-| 1 | A new source complaint is ingested once and appears in the operational queue. | Proven locally | Browser test added `CAS-ACCEPTANCE-HOTSPOT` once and used it in the hotspot workflow. A malformed `CAS-INCOMPLETE-REVIEW` fixture was excluded from the queue and surfaced with specific missing-address, invalid-time, and invalid-coordinate reasons. Duplicate source IDs remain skipped. |
+| 1 | A new source complaint is ingested once and appears in the operational queue. | Proven locally | The current official City feed adds 33 records beyond the 104-record Base44 baseline. A deterministic server test added a new City record exactly once; an identical second sync made no state change. A malformed fixture is excluded and retained with validation reasons. |
 | 2 | Classification and operator attribution include inspectable evidence. | Proven locally | Narrative inputs use deterministic ordered rules and show evidence boundaries. Accessibility keywords create `ADA concern`/`reported-claim`; only a recorded supporting photograph creates `ADA ramp`/`visually-confirmed`. Vendor attribution is independent. Three user-reviewed request photographs support operator identity overrides; the current 4th Avenue photo remains accessibility-inconclusive. |
 | 3 | An authorized user can assign a request, change status, and see an audit history. | Proven locally | The durable service authenticates a configured user, persists request and evidence updates in SQLite, and exposes append-only field-level history directly in request detail. The acceptance update survived reload and was attributed to `admin`. |
 | 4 | The complaint appears at the correct map location and in the correct zone. | Proven for available coordinates | The joined operational street map plots every selected 311 record at its stored latitude/longitude with source ID, address, zone, status, and priority. It overlays 3,592 GBFS positions, cross-vendor flags, named watches, and 52 published no-park/no-ride policy features on OpenStreetMap tiles. Source-zone correctness still depends on the upstream record. |
 | 5 | A qualifying cluster produces an explainable hotspot and recommendation. | Proven locally | A temporary reported accessibility fixture generated a score-7 High hotspot without claiming a confirmed violation. Operator created an intervention preserving its score, source record, independent signal, deterministic team, rationale, and transition. Viewer controls were disabled and duplicate active-zone recommendations are prevented. |
 | 6 | A recommendation cannot be dispatched before approval. | Proven locally | Browser test confirmed a recommended intervention exposes only Approve; Dispatch appears only after approval. |
 | 7 | Completing an intervention creates an outcome path with explicit dates. | Proven locally | Isolated Chromium testing completed recommended → approved → dispatched → completed, required a completion note, and created an inconclusive outcome with four ISO boundary timestamps, readable seven-day windows, baseline source IDs, and completion evidence. A separate skipped recommendation created no outcome. |
-| 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for snapshot | The interface shows `Base44 snapshot · 104`, 8 open, 96 resolved, and recalculates counts after local intake and status changes. Dedicated status, source-anchored date, zone, complaint-type, operator, and severity filters were exercised against loaded records. |
-| 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous reads, requires CSRF, permits Operators to assign requests, add recommendations, and submit evidence challenges, but rejects source-evidence changes, City findings, and intervention approval. Administrator transitions are accepted. |
-| 10 | Existing records remain present after the change. | Proven for build process | Base44 was accessed read-only; all 104 exported records remained available. Live write integration has not begun. |
+| 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for current feed | The interface shows `City 30-day feed · 137`, preserves all 104 Base44 IDs, and recalculates counts after source hydration and local changes. Dedicated status, source-anchored date, zone, complaint-type, operator, and severity filters are exercised against loaded records. |
+| 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous reads, requires CSRF, permits Operators to assign requests, add recommendations, pause alert rules, and submit evidence challenges, but rejects source-evidence changes, City findings, intervention approval, protected-section edits, malformed intake, duplicate IDs, alert-rule deletion/retargeting, and alert-history mutation. Administrator transitions are accepted. |
+| 10 | Existing records remain present after the change. | Proven locally | Base44 was accessed read-only; all 104 exported IDs remain within the 137-record City-hydrated queue. The service merge test proves source refreshes preserve local lifecycle, team, and notes. |
 | 11 | Mobile and desktop layouts preserve operational hierarchy. | Proven locally | Headless Chromium verified the Historical Trends view at 1440×1000 and 390×844. Both layouts show the source boundary, metrics, monthly volume, channels, repeat locations, and anonymous reporting-pattern evidence; document width matches the viewport at both sizes. The horizontally scrollable mobile navigation is intentional. |
-| 12 | UI text does not claim unverified functions are live. | Proven locally | The interface labels the data as a dated read-only Base44 snapshot and local edits as browser-only. |
+| 12 | UI text does not claim unverified functions are live. | Proven locally | The interface labels the 137-record City data as a read-only 30-day feed, distinguishes committed browser evidence from durable mode, and does not claim the optional scheduler is deployed. |
 
 ## Required-behavior coverage beyond the numbered tests
 
@@ -240,18 +259,36 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
 | Concise daily operating brief | Proven locally | The Brief & Alerts view computes new requests, unresolved critical items, dispatched work, and measured outcomes from the loaded state with an explicit source-window cutoff. |
 | Production alert delivery | Partial | The authenticated server now records and deduplicates scheduled delivery states. Email/SMS/push transport still requires an authorized provider and recipient management; the UI does not claim those transports are active. |
 
+## Completion-evidence decision
+
+| Required evidence | Current decision | Authoritative evidence |
+|---|---|---|
+| Live UI walkthrough across the full operational lifecycle | Proven in isolated local runtime; not yet proven on a deployed URL | 67-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, and outcome. The 15-check durable suite covers authenticated persistence and audit history. |
+| Current entity counts and representative records | Proven for the refreshed evidence bundle | Official public-feed refresh contains 137 unique requests; all 104 Base44 IDs remain present and 33 City-only records are added. |
+| Scheduled workflows active with recent successful runs | Proven in local runtime; deployment evidence missing | Repeated scheduler tests create successful append-only brief and alert runs. City sync is independently tested and idempotent. No production host currently supplies recent runtime records. |
+| Administrator and non-administrator permission checks | Proven locally | Browser and API tests cover Viewer, Operator, and Administrator paths, protected sections, source evidence, interventions, malformed intake, duplicate IDs, alerts, and append-only histories. |
+| Build/runtime check with no blocking errors | Proven locally; container-host build remains external | JavaScript syntax, 67 browser checks, 15 durable-browser checks, and 12 standard-library tests pass. Docker is unavailable in this workspace, so a host image build is not claimed. |
+| Existing complaint IDs preserved | Proven locally | The acceptance suite compares the 104 Base44 source IDs with the 137-record hydrated queue and requires every ID to remain present. |
+
+The product behavior is implemented and locally verified. Completion under the
+spec remains intentionally unclaimed until a controlled deployment supplies a
+live URL, successful container/runtime check, and recent scheduled-run evidence.
+
 ## Reproducible local verification
 
 - Install the declared Playwright development dependency with `npm install`.
 - Run `npm test` from the project root.
-- Expected current browser-only result: `passed: 66`.
+- The exact browser-check count is emitted by the suite; every check must pass.
+- Run `npm run refresh:311` to rebuild the committed current City feed using a
+  read-only public query.
 - Run `npm run refresh:gbfs` to deterministically rebuild the current positions
   and complete watch history from the configured snapshot archive.
 - Run `npm run serve` with one or more `APP_*_PASSWORD` values to exercise
   durable authenticated mode; no password is included in the repository.
 - Add `APP_ENABLE_SCHEDULER=1` and an
   `APP_SCHEDULER_INTERVAL_SECONDS` value to exercise recurring workflows.
-- The suite is local-only and does not read from or write to Base44, GitHub, or
+- Add `APP_ENABLE_CITY_SYNC=1` to include the read-only City refresh. The suite
+  itself uses deterministic fixtures and does not write to Base44, GitHub, or
   City systems.
 
 ## Remaining completion gates
@@ -269,7 +306,8 @@ Current artifact: local browser application in `/Users/sjneedhamicloud.com/Docum
    without risking existing Base44 records.
 6. Run the complete acceptance suite against the deployed application.
 7. Enable the proven scheduler in the deployed environment and verify recent
-   successful runs there; local scheduled runs do not prove production uptime.
+   successful `city_311_sync`, `daily_brief`, and `alert_evaluation` runs there;
+   local scheduled runs do not prove production uptime.
 
 ## Base44 credit decision
 

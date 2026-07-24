@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import http.cookies
 import json
+import math
 import os
 import secrets
 import sqlite3
@@ -19,6 +20,8 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
+
+from columbus_311_feed import build_feed, fetch_payload, merge_operational_issues
 
 
 ROLE_RANK = {"viewer": 0, "operator": 1, "admin": 2}
@@ -305,8 +308,90 @@ class Database:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def run_workflows(self, trigger="scheduled"):
+    def sync_city_311(self, fetcher=fetch_payload):
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT state_json FROM workflow_state WHERE singleton=1"
+            ).fetchone()
+            current_state = json.loads(row["state_json"])
+        if not current_state:
+            return {
+                "status": "skipped",
+                "reason": "durable workflow state is not initialized",
+            }
+        feed = build_feed(fetcher())
+        with self.lock, self.connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT state_json, version FROM workflow_state WHERE singleton=1"
+            ).fetchone()
+            state = json.loads(row["state_json"])
+            merged, summary = merge_operational_issues(
+                state.get("issues", []), feed["records"]
+            )
+            if merged == state.get("issues", []):
+                connection.rollback()
+                return {
+                    "status": "success",
+                    **summary,
+                    "source_records": feed["record_count"],
+                    "invalid": feed["invalid_count"],
+                    "state_changed": False,
+                }
+            state["issues"] = merged
+            state["cityFeedFetchedAt"] = feed["fetched_at"]
+            state["cityFeedRecordCount"] = feed["record_count"]
+            next_version = row["version"] + 1
+            connection.execute(
+                """
+                UPDATE workflow_state
+                SET version=?, state_json=?, updated_at=?, updated_by='city-311-sync'
+                WHERE singleton=1
+                """,
+                (
+                    next_version,
+                    json.dumps(state, separators=(",", ":")),
+                    now_iso(),
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO audit_log
+                (at, actor, role, action, target, detail, state_version)
+                VALUES (?, 'city-311-sync', 'admin', 'source_records_synced',
+                        'City of Columbus 311 public feed', ?, ?)
+                """,
+                (
+                    now_iso(),
+                    (
+                        f"{summary['added']} added; {summary['updated']} source records "
+                        f"refreshed; {feed['invalid_count']} invalid"
+                    ),
+                    next_version,
+                ),
+            )
+            connection.commit()
+        return {
+            "status": "success",
+            **summary,
+            "source_records": feed["record_count"],
+            "invalid": feed["invalid_count"],
+            "state_changed": True,
+            "state_version": next_version,
+        }
+
+    def run_workflows(self, trigger="scheduled", city_sync=False):
         started_at = now_iso()
+        outputs = {}
+        run_statuses = {}
+        if city_sync:
+            try:
+                city_output = self.sync_city_311()
+                outputs["city_311_sync"] = city_output
+                run_statuses["city_311_sync"] = city_output.get("status", "success")
+            except Exception as error:
+                outputs["city_311_sync"] = {"error": str(error)}
+                run_statuses["city_311_sync"] = "failed"
         with self.lock, self.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
@@ -314,17 +399,19 @@ class Database:
             ).fetchone()
             state = json.loads(row["state_json"])
             if not state:
-                outputs = {
+                local_outputs = {
                     "daily_brief": {"reason": "durable workflow state is not initialized"},
                     "alert_evaluation": {"reason": "durable workflow state is not initialized"},
                 }
                 status = "skipped"
             else:
-                outputs = {
+                local_outputs = {
                     "daily_brief": build_daily_brief(state),
                     "alert_evaluation": evaluate_alerts(connection, state),
                 }
                 status = "success"
+            outputs.update(local_outputs)
+            run_statuses.update({workflow: status for workflow in local_outputs})
             completed_at = now_iso()
             for workflow, output in outputs.items():
                 connection.execute(
@@ -338,12 +425,13 @@ class Database:
                         trigger,
                         started_at,
                         completed_at,
-                        status,
+                        run_statuses[workflow],
                         json.dumps(output, separators=(",", ":")),
                     ),
                 )
             connection.commit()
-        return {"status": status, "runs": outputs, "completed_at": completed_at}
+        overall = "failed" if "failed" in run_statuses.values() else status
+        return {"status": overall, "runs": outputs, "completed_at": completed_at}
 
     def workflow_runs(self, limit=40):
         with self.connect() as connection:
@@ -366,13 +454,90 @@ def indexed(items):
     return {str(item.get("id")): item for item in items or [] if item.get("id")}
 
 
+def validate_issue_records(issues):
+    if not isinstance(issues, list):
+        raise ValueError("issues must be an array")
+    ids = []
+    allowed_statuses = {"received", "assigned", "in_progress", "resolved"}
+    allowed_priorities = {"standard", "high", "critical"}
+    for index, issue in enumerate(issues):
+        if not isinstance(issue, dict):
+            raise ValueError(f"request at index {index} must be an object")
+        issue_id = str(issue.get("id") or "").strip()
+        if not issue_id:
+            raise ValueError(f"request at index {index} requires id")
+        ids.append(issue_id)
+        for field in ("descriptor", "address", "zone", "reportedAt"):
+            if not str(issue.get(field) or "").strip():
+                raise ValueError(f"request {issue_id} requires {field}")
+        if parse_time(issue.get("reportedAt")) is None:
+            raise ValueError(f"request {issue_id} has invalid reportedAt")
+        try:
+            latitude = float(issue.get("lat"))
+            longitude = float(issue.get("lng"))
+        except (TypeError, ValueError):
+            raise ValueError(f"request {issue_id} requires valid coordinates")
+        if (
+            not math.isfinite(latitude)
+            or not math.isfinite(longitude)
+            or not -90 <= latitude <= 90
+            or not -180 <= longitude <= 180
+        ):
+            raise ValueError(f"request {issue_id} requires valid coordinates")
+        if issue.get("status") not in allowed_statuses:
+            raise ValueError(f"request {issue_id} has invalid status")
+        if issue.get("priority") not in allowed_priorities:
+            raise ValueError(f"request {issue_id} has invalid priority")
+    if len(ids) != len(set(ids)):
+        raise ValueError("request ids must be unique")
+
+
+def validate_alert_subscriptions(subscriptions):
+    if not isinstance(subscriptions, list):
+        raise ValueError("alertSubscriptions must be an array")
+    ids = []
+    for index, subscription in enumerate(subscriptions):
+        if not isinstance(subscription, dict):
+            raise ValueError(f"alert subscription at index {index} must be an object")
+        subscription_id = str(subscription.get("id") or "").strip()
+        if not subscription_id:
+            raise ValueError(f"alert subscription at index {index} requires id")
+        ids.append(subscription_id)
+        if subscription.get("severity") not in {"standard", "high", "critical"}:
+            raise ValueError(f"alert subscription {subscription_id} has invalid severity")
+        if not str(subscription.get("zone") or "").strip():
+            raise ValueError(f"alert subscription {subscription_id} requires zone")
+        if not isinstance(subscription.get("enabled"), bool):
+            raise ValueError(f"alert subscription {subscription_id} requires enabled")
+    if len(ids) != len(set(ids)):
+        raise ValueError("alert subscription ids must be unique")
+
+
 def validate_transition(previous, candidate, role):
     if not isinstance(candidate, dict):
         raise ValueError("state must be an object")
     if role not in ROLE_RANK or ROLE_RANK[role] < ROLE_RANK["operator"]:
         raise PermissionError("operator role required")
+    validate_issue_records(candidate.get("issues"))
+    validate_alert_subscriptions(candidate.get("alertSubscriptions", []))
     if role == "admin" or previous is None:
         return
+
+    operator_mutable_sections = {
+        "issues",
+        "interventions",
+        "alertSubscriptions",
+        "alertDeliveries",
+        "importReview",
+    }
+    changed_sections = {
+        key
+        for key in set(previous) | set(candidate)
+        if previous.get(key) != candidate.get(key)
+    }
+    if not changed_sections <= operator_mutable_sections:
+        blocked = ", ".join(sorted(changed_sections - operator_mutable_sections))
+        raise PermissionError(f"administrator required to change sections: {blocked}")
 
     previous_issues = indexed(previous.get("issues"))
     candidate_issues = indexed(candidate.get("issues"))
@@ -404,6 +569,17 @@ def validate_transition(previous, candidate, role):
             raise PermissionError(
                 f"administrator required to record City findings for request {issue_id}"
             )
+    city_findings = {"city_reviewing", "city_supported", "city_not_supported"}
+    for issue_id in candidate_issues.keys() - previous_issues.keys():
+        issue = candidate_issues[issue_id]
+        if issue.get("crossReferenceUrl") or issue.get("crossReferenceStatus"):
+            raise PermissionError(
+                f"administrator required to add source evidence for request {issue_id}"
+            )
+        if issue.get("accessibilityChallengeStatus") in city_findings:
+            raise PermissionError(
+                f"administrator required to record City findings for request {issue_id}"
+            )
 
     previous_interventions = indexed(previous.get("interventions"))
     candidate_interventions = indexed(candidate.get("interventions"))
@@ -420,6 +596,32 @@ def validate_transition(previous, candidate, role):
 
     if candidate.get("outcomes", []) != previous.get("outcomes", []):
         raise PermissionError("administrator required to change outcomes")
+
+    previous_subscriptions = indexed(previous.get("alertSubscriptions"))
+    candidate_subscriptions = indexed(candidate.get("alertSubscriptions"))
+    if not previous_subscriptions.keys() <= candidate_subscriptions.keys():
+        raise PermissionError("operators cannot delete alert subscriptions")
+    for subscription_id, old in previous_subscriptions.items():
+        new = candidate_subscriptions[subscription_id]
+        changed = {key for key in set(old) | set(new) if old.get(key) != new.get(key)}
+        if not changed <= {"enabled"}:
+            raise PermissionError(
+                f"operators may only enable or pause alert subscription {subscription_id}"
+            )
+
+    previous_deliveries = indexed(previous.get("alertDeliveries"))
+    candidate_deliveries = indexed(candidate.get("alertDeliveries"))
+    if not previous_deliveries.keys() <= candidate_deliveries.keys():
+        raise PermissionError("alert delivery history is append-only")
+    for delivery_id, old in previous_deliveries.items():
+        if candidate_deliveries[delivery_id] != old:
+            raise PermissionError(f"alert delivery {delivery_id} is append-only")
+    dedupe_keys = [
+        str(delivery.get("dedupeKey") or "")
+        for delivery in candidate.get("alertDeliveries", [])
+    ]
+    if any(not key for key in dedupe_keys) or len(dedupe_keys) != len(set(dedupe_keys)):
+        raise ValueError("alert deliveries require unique dedupeKey values")
 
 
 def summarize_change(previous, candidate):
@@ -547,9 +749,10 @@ def evaluate_alerts(connection, state):
 
 
 class WorkflowScheduler:
-    def __init__(self, database, interval_seconds):
+    def __init__(self, database, interval_seconds, city_sync_enabled=False):
         self.database = database
         self.interval_seconds = max(1, int(interval_seconds))
+        self.city_sync_enabled = bool(city_sync_enabled)
         self.stop_event = threading.Event()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
@@ -559,7 +762,9 @@ class WorkflowScheduler:
     def _run(self):
         while not self.stop_event.is_set():
             try:
-                self.database.run_workflows("scheduled")
+                self.database.run_workflows(
+                    "scheduled", city_sync=self.city_sync_enabled
+                )
             except Exception as error:
                 with self.database.lock, self.database.connect() as connection:
                     connection.execute(
@@ -667,6 +872,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "authenticated": bool(self.current_session()),
                     "scheduler_enabled": self.server.scheduler_enabled,
                     "scheduler_interval_seconds": self.server.scheduler_interval_seconds,
+                    "city_sync_enabled": self.server.city_sync_enabled,
                 },
             )
         elif path == "/api/session":
@@ -698,6 +904,7 @@ class AppHandler(SimpleHTTPRequestHandler):
                     HTTPStatus.OK,
                     {
                         "enabled": self.server.scheduler_enabled,
+                        "city_sync_enabled": self.server.city_sync_enabled,
                         "interval_seconds": self.server.scheduler_interval_seconds,
                         **self.database.workflow_runs(),
                     },
@@ -746,7 +953,9 @@ class AppHandler(SimpleHTTPRequestHandler):
             if session:
                 self.json_response(
                     HTTPStatus.OK,
-                    self.database.run_workflows("manual"),
+                    self.database.run_workflows(
+                        "manual", city_sync=self.server.city_sync_enabled
+                    ),
                 )
         else:
             self.json_response(HTTPStatus.NOT_FOUND, {"error": "not found"})
@@ -789,6 +998,7 @@ def create_server(
     static_root,
     scheduler_enabled=False,
     scheduler_interval_seconds=300,
+    city_sync_enabled=False,
 ):
     database = Database(database_path)
     configured_users = database.seed_users_from_environment()
@@ -801,10 +1011,13 @@ def create_server(
     server.configured_users = configured_users
     server.scheduler_enabled = bool(scheduler_enabled)
     server.scheduler_interval_seconds = max(1, int(scheduler_interval_seconds))
+    server.city_sync_enabled = bool(city_sync_enabled)
     server.scheduler = None
     if server.scheduler_enabled:
         server.scheduler = WorkflowScheduler(
-            database, server.scheduler_interval_seconds
+            database,
+            server.scheduler_interval_seconds,
+            city_sync_enabled=server.city_sync_enabled,
         )
         server.scheduler.start()
     return server
@@ -821,6 +1034,7 @@ def main():
     )
     args = parser.parse_args()
     scheduler_enabled = os.environ.get("APP_ENABLE_SCHEDULER") == "1"
+    city_sync_enabled = os.environ.get("APP_ENABLE_CITY_SYNC") == "1"
     scheduler_interval = int(os.environ.get("APP_SCHEDULER_INTERVAL_SECONDS", "300"))
     server = create_server(
         args.host,
@@ -829,6 +1043,7 @@ def main():
         Path(__file__).resolve().parent,
         scheduler_enabled=scheduler_enabled,
         scheduler_interval_seconds=scheduler_interval,
+        city_sync_enabled=city_sync_enabled,
     )
     print(
         json.dumps(
@@ -838,6 +1053,7 @@ def main():
                 "configured_users": server.configured_users,
                 "scheduler_enabled": server.scheduler_enabled,
                 "scheduler_interval_seconds": server.scheduler_interval_seconds,
+                "city_sync_enabled": server.city_sync_enabled,
             }
         ),
         flush=True,

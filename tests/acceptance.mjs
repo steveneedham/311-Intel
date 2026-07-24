@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -8,6 +8,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const port = 8876;
 const baseUrl = `http://127.0.0.1:${port}/`;
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const cityFeed = JSON.parse(readFileSync(resolve(root, "columbus-311-current.json"), "utf8"));
+const base44Snapshot = JSON.parse(readFileSync(resolve(root, "base44-live-snapshot.json"), "utf8"));
+const expectedCityCount = cityFeed.records.length;
+const preservedBase44Ids = base44Snapshot.entities.map(record => record.source_id);
 const server = spawn("python3", ["-m", "http.server", String(port), "--bind", "127.0.0.1"], {
   cwd: root,
   stdio: "ignore"
@@ -43,10 +47,31 @@ try {
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForFunction(() => document.getElementById("dataMode")?.innerText.includes("104"));
+  await page.waitForFunction(
+    count => document.getElementById("dataMode")?.innerText.includes(String(count)),
+    expectedCityCount
+  );
 
-  check((await page.locator("#dataMode").innerText()).includes("Base44 snapshot · 104"), "104-record source snapshot loads");
-  check(await page.locator("#issueRows tr").count() === 8, "open queue shows eight unresolved snapshot records");
+  check(
+    (await page.locator("#dataMode").innerText()).includes(`City 30-day feed · ${expectedCityCount}`),
+    `${expectedCityCount}-record City feed loads`
+  );
+  check(
+    await page.evaluate(
+      ({ expectedCount, baseIds }) => {
+        const issueIds = new Set(state.issues.map(issue => issue.id));
+        return (
+          state.base44SnapshotCount === baseIds.length &&
+          state.issues.length === expectedCount &&
+          issueIds.size === expectedCount &&
+          baseIds.every(id => issueIds.has(id))
+        );
+      },
+      { expectedCount: expectedCityCount, baseIds: preservedBase44Ids }
+    ),
+    `all ${preservedBase44Ids.length} Base44 IDs are preserved and City records are deduplicated`
+  );
+  check(await page.locator("#issueRows tr").count() === 8, "open queue shows eight unresolved current records");
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
   await page.locator('#issueRows tr[data-id="CAS-3085657-R4J3G9"]').click();
@@ -74,7 +99,7 @@ try {
   check(crossReferenceDetail.includes("ADA concern") && crossReferenceDetail.includes("Spin"), "OneView evidence preserves the reported ADA concern and confirms only the operator");
   check(crossReferenceDetail.includes("Reported Claim") && crossReferenceDetail.includes("Photo Inconclusive") && crossReferenceDetail.includes("HIGH"), "unconfirmed ADA report remains evidence-qualified rather than a critical violation");
   check(crossReferenceDetail.includes("Photo And Text Confirmed"), "photo-and-text attribution confidence is visible");
-  check(/OneView status/i.test(crossReferenceDetail) && crossReferenceDetail.includes("Assigned") && crossReferenceDetail.includes("read-only cross-reference") && await page.locator("#statusInput").inputValue() === "received", "official OneView status remains separate from the local lifecycle");
+  check(/City source status/i.test(crossReferenceDetail) && crossReferenceDetail.includes("Received") && /OneView status/i.test(crossReferenceDetail) && crossReferenceDetail.includes("Assigned") && crossReferenceDetail.includes("read-only cross-reference") && await page.locator("#statusInput").inputValue() === "received", "City, OneView, and operational lifecycle statuses remain separate");
   check(crossReferenceDetail.includes("second improperly parked scooter") && !/Justin Goodwin|Walter Hardy|7:07PM/i.test(crossReferenceDetail), "official narrative is summarized without personal details");
   check(await page.locator('#detailPanel a[href="https://columbusoh.oneviewcrm.cc/servicerequests/84b19b9a-2886-f111-a86d-000d3adc4910"]').count() === 1, "official OneView request link is exact");
   await page.locator("#roleSelect").selectOption("viewer");
@@ -274,7 +299,7 @@ try {
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mobilePage = await mobileContext.newPage();
   await mobilePage.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await mobilePage.waitForFunction(() => document.getElementById("dataMode")?.innerText.includes("104"));
+  await mobilePage.waitForFunction(() => document.getElementById("dataMode")?.innerText.includes("137"));
   await mobilePage.locator('[data-view="vehicles"]').click();
   check(await mobilePage.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth), "mobile document has no horizontal overflow");
   check((await mobilePage.locator("#pileupList").innerText()).includes("Columbus Crew vs. New York City FC"), "event evidence preserves mobile hierarchy");

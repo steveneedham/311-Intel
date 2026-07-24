@@ -116,6 +116,7 @@ class DurableServerTest(unittest.TestCase):
         anonymous = ApiClient(self.base_url)
         status, health = anonymous.request("GET", "/api/health")
         self.assertEqual((status, health["storage"]), (200, "sqlite"))
+        self.assertFalse(health["city_sync_enabled"])
         self.assertEqual(anonymous.last_headers["X-Frame-Options"], "DENY")
         self.assertIn("frame-ancestors 'none'", anonymous.last_headers["Content-Security-Policy"])
         status, _ = anonymous.request("GET", "/api/state")
@@ -284,6 +285,175 @@ class DurableServerTest(unittest.TestCase):
         self.assertGreaterEqual(len(scheduled_daily), 2)
         self.assertGreaterEqual(len(scheduled_alerts), 2)
         self.assertEqual(scheduled_alerts[0]["output"]["new_delivery_count"], 0)
+
+    def test_city_sync_preserves_local_workflow_and_is_idempotent(self):
+        admin = ApiClient(self.base_url)
+        status, _ = admin.login("admin", "administrator-pass-123")
+        self.assertEqual(status, 200)
+        initial = deepcopy(BASE_STATE)
+        initial["issues"][0].update(
+            {
+                "status": "assigned",
+                "team": "Central response",
+                "notes": "Operator is en route.",
+            }
+        )
+        status, saved = admin.request(
+            "PUT", "/api/state", {"version": 0, "state": initial}, csrf=True
+        )
+        self.assertEqual((status, saved["version"]), (200, 1))
+
+        payload = {
+            "features": [
+                {
+                    "attributes": {
+                        "CASE_ID": "CAS-TEST-001",
+                        "STATUS": "Closed",
+                        "STATUS_DATE": 1784865600000,
+                        "REPORTED_DATE": 1784779200000,
+                        "REQUEST_TYPE": "Shared Electric Bike & Scooters",
+                        "STREET": "100 Updated Test St",
+                        "CITY": "Columbus",
+                        "ZIP": "43215",
+                        "COLUMBUSCOMMUNITY": "Downtown",
+                        "AREACOMMISSION": "Downtown",
+                        "COUNCILDISTRICT": "1",
+                        "LATITUDE": 39.961,
+                        "LONGITUDE": -83.001,
+                        "REQUEST_MODIFIED": 1784865600000,
+                    }
+                },
+                {
+                    "attributes": {
+                        "CASE_ID": "CAS-TEST-002",
+                        "STATUS": "Open",
+                        "STATUS_DATE": 1784869200000,
+                        "REPORTED_DATE": 1784862000000,
+                        "REQUEST_TYPE": "Shared Electric Bike & Scooters",
+                        "STREET": "200 New Test St",
+                        "CITY": "Columbus",
+                        "ZIP": "43215",
+                        "COLUMBUSCOMMUNITY": "Downtown",
+                        "AREACOMMISSION": "Downtown",
+                        "COUNCILDISTRICT": "1",
+                        "LATITUDE": 39.962,
+                        "LONGITUDE": -83.002,
+                        "REQUEST_MODIFIED": 1784869200000,
+                    }
+                },
+            ]
+        }
+        database = self.server.RequestHandlerClass.database
+        first = database.sync_city_311(fetcher=lambda: payload)
+        self.assertEqual(
+            (
+                first["status"],
+                first["added"],
+                first["updated"],
+                first["state_changed"],
+                first["state_version"],
+            ),
+            ("success", 1, 1, True, 2),
+        )
+
+        status, durable = admin.request("GET", "/api/state")
+        self.assertEqual(status, 200)
+        by_id = {issue["id"]: issue for issue in durable["state"]["issues"]}
+        existing = by_id["CAS-TEST-001"]
+        self.assertEqual(existing["status"], "assigned")
+        self.assertEqual(existing["team"], "Central response")
+        self.assertEqual(existing["notes"], "Operator is en route.")
+        self.assertEqual(existing["sourceStatus"], "Closed")
+        self.assertEqual(existing["address"], "100 Updated Test St")
+        self.assertEqual(by_id["CAS-TEST-002"]["status"], "received")
+
+        second = database.sync_city_311(fetcher=lambda: payload)
+        self.assertEqual(
+            (second["status"], second["added"], second["updated"], second["state_changed"]),
+            ("success", 0, 0, False),
+        )
+        status, durable = admin.request("GET", "/api/state")
+        self.assertEqual((status, durable["version"]), (200, 2))
+        self.assertEqual(len(durable["state"]["issues"]), 2)
+        sync_entries = [
+            entry
+            for entry in database.audit(limit=20)
+            if entry["action"] == "source_records_synced"
+        ]
+        self.assertEqual(len(sync_entries), 1)
+
+    def test_operator_state_boundary_and_minimum_fields(self):
+        operator = ApiClient(self.base_url)
+        status, _ = operator.login("operator", "operator-pass-123")
+        self.assertEqual(status, 200)
+        status, saved = operator.request(
+            "PUT", "/api/state", {"version": 0, "state": BASE_STATE}, csrf=True
+        )
+        self.assertEqual((status, saved["version"]), (200, 1))
+
+        malformed = deepcopy(BASE_STATE)
+        malformed["issues"].append(
+            {
+                "id": "CAS-MALFORMED",
+                "address": "",
+                "zone": "Downtown",
+                "reportedAt": "not-a-date",
+                "lat": 39.96,
+                "lng": -83.0,
+                "status": "received",
+                "priority": "standard",
+            }
+        )
+        status, payload = operator.request(
+            "PUT", "/api/state", {"version": 1, "state": malformed}, csrf=True
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("requires descriptor", payload["error"])
+
+        protected_section = deepcopy(BASE_STATE)
+        protected_section["cityFeedRecordCount"] = 0
+        status, payload = operator.request(
+            "PUT",
+            "/api/state",
+            {"version": 1, "state": protected_section},
+            csrf=True,
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("administrator required to change sections", payload["error"])
+
+        altered_rule = deepcopy(BASE_STATE)
+        altered_rule["alertSubscriptions"][0]["severity"] = "standard"
+        status, payload = operator.request(
+            "PUT", "/api/state", {"version": 1, "state": altered_rule}, csrf=True
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("only enable or pause", payload["error"])
+
+        deleted_rule = deepcopy(BASE_STATE)
+        deleted_rule["alertSubscriptions"] = []
+        status, payload = operator.request(
+            "PUT", "/api/state", {"version": 1, "state": deleted_rule}, csrf=True
+        )
+        self.assertEqual(status, 403)
+        self.assertIn("cannot delete alert subscriptions", payload["error"])
+
+        paused_rule = deepcopy(BASE_STATE)
+        paused_rule["alertSubscriptions"][0]["enabled"] = False
+        status, saved = operator.request(
+            "PUT", "/api/state", {"version": 1, "state": paused_rule}, csrf=True
+        )
+        self.assertEqual((status, saved["version"]), (200, 2))
+
+        duplicate_request = deepcopy(paused_rule)
+        duplicate_request["issues"].append(deepcopy(duplicate_request["issues"][0]))
+        status, payload = operator.request(
+            "PUT",
+            "/api/state",
+            {"version": 2, "state": duplicate_request},
+            csrf=True,
+        )
+        self.assertEqual(status, 400)
+        self.assertIn("request ids must be unique", payload["error"])
 
 
 if __name__ == "__main__":

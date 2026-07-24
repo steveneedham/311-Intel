@@ -91,7 +91,11 @@ try {
   check(true, "request update reaches durable state");
 
   await page.locator('[data-view="activity"]').click();
-  check((await page.locator("#workflowRunList").innerText()).includes("Scheduler disabled"), "scheduler activation boundary is visible");
+  const workflowBoundary = await page.locator("#workflowRunList").innerText();
+  check(
+    workflowBoundary.includes("Scheduler disabled") && workflowBoundary.includes("City 311 sync disabled"),
+    "scheduler and City source-sync activation boundaries are visible"
+  );
   await page.locator("#runWorkflows").click();
   await page.waitForFunction(() => document.querySelectorAll(".workflow-run").length >= 2);
   const workflowText = await page.locator("#workflowRunList").innerText();
