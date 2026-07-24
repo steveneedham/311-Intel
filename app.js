@@ -1641,6 +1641,9 @@ function generateHotspotRecommendation(zone) {
   }
   const createdAt = new Date().toISOString();
   const eventEvidence = hotspot.issues.map(eventEvidenceForIssue).filter(Boolean);
+  const attributedVendors = [...new Set(
+    hotspot.issues.map(issue => issue.operator).filter(operator => ["Spin", "Veo"].includes(operator))
+  )];
   const item = {
     id: nextInterventionId(),
     zone,
@@ -1656,6 +1659,8 @@ function generateHotspotRecommendation(zone) {
     sourceIssueIds: hotspot.issues.map(issue => issue.id),
     independentIssueIds: hotspot.independentSignals.map(issue => issue.id),
     eventEvidence,
+    targetVendors: attributedVendors.length ? attributedVendors : ["Spin", "Veo"],
+    vendorResponses: {},
     transitions: [{ status: "recommended", at: createdAt, actor: `local-${currentRole}` }]
   };
   state.interventions.push(item);
@@ -1754,6 +1759,54 @@ function renderHotspots() {
   });
 }
 
+function interventionVendors(item) {
+  const configured = Array.isArray(item.targetVendors)
+    ? item.targetVendors.filter(vendor => ["Spin", "Veo"].includes(vendor))
+    : [];
+  if (configured.length) return [...new Set(configured)];
+  const attributed = (item.sourceIssueIds || [])
+    .map(issueId => state.issues.find(issue => issue.id === issueId)?.operator)
+    .filter(vendor => ["Spin", "Veo"].includes(vendor));
+  return attributed.length ? [...new Set(attributed)] : ["Spin", "Veo"];
+}
+
+function vendorResponseComplete(item) {
+  return interventionVendors(item).every(vendor =>
+    ["accepted", "acknowledged"].includes(item.vendorResponses?.[vendor]?.status)
+  );
+}
+
+function renderVendorResponses(item) {
+  if (!["dispatched", "completed"].includes(item.status)) return "";
+  const vendors = interventionVendors(item);
+  return `
+    <section class="vendor-response-panel" aria-label="Vendor responses for ${escapeHtml(item.id)}">
+      <div>
+        <p class="eyebrow">Vendor response</p>
+        <p>Every dispatched vendor must accept or acknowledge this intervention before completion.</p>
+      </div>
+      <div class="vendor-response-list">
+        ${vendors.map(vendor => {
+          const response = item.vendorResponses?.[vendor];
+          const status = response?.status || "pending";
+          return `
+            <div class="vendor-response-row">
+              <div>
+                <strong>${escapeHtml(vendor)}</strong>
+                <span class="badge badge-${status === "pending" ? "standard" : status === "accepted" ? "approved" : "in_progress"}">${escapeHtml(label(status))}</span>
+                ${response?.at ? `<small>${new Date(response.at).toLocaleString()} · ${escapeHtml(response.actor || "recorded response")}</small>` : ""}
+              </div>
+              ${item.status === "dispatched" && status === "pending" ? `
+                <div class="vendor-response-actions">
+                  <button class="secondary-button" type="button" data-vendor-response="accepted" data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}" ${!roleAllows("operator") ? "disabled" : ""}>Accept</button>
+                  <button class="secondary-button" type="button" data-vendor-response="acknowledged" data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}" ${!roleAllows("operator") ? "disabled" : ""}>Acknowledge</button>
+                </div>` : ""}
+            </div>`;
+        }).join("")}
+      </div>
+    </section>`;
+}
+
 function renderInterventions() {
   const list = document.getElementById("interventionList");
   list.innerHTML = state.interventions.length ? state.interventions.map(item => `
@@ -1765,9 +1818,11 @@ function renderInterventions() {
         ${item.sourceIssueIds?.length ? `<p class="intervention-evidence"><strong>Source records:</strong> ${item.sourceIssueIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : ""}
         ${item.eventEvidence?.length ? `<p class="intervention-evidence"><strong>Event-window context:</strong> ${item.eventEvidence.map(evidence => `${escapeHtml(evidence.issueId)} · ${escapeHtml(evidence.eventName)} · ${escapeHtml(label(evidence.window))} · ${evidence.venueDistanceMeters} m from venue`).join("; ")}</p>` : ""}
         ${item.completionNotes ? `<p class="completion-note"><strong>Completion note:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
+        ${renderVendorResponses(item)}
         <div class="record-meta">
           <span>${escapeHtml(item.id)}</span>
           <span>Team: ${escapeHtml(item.team || "Unassigned")}</span>
+          <span>Vendors: ${interventionVendors(item).map(vendor => escapeHtml(vendor)).join(", ")}</span>
           <span>Created ${new Date(item.createdAt).toLocaleString()}</span>
           ${item.approvedAt ? `<span>Approved ${new Date(item.approvedAt).toLocaleString()}</span>` : ""}
           ${item.dispatchedAt ? `<span>Dispatched ${new Date(item.dispatchedAt).toLocaleString()}</span>` : ""}
@@ -1785,6 +1840,29 @@ function renderInterventions() {
         </label>` : ""}
       </div>
     </article>`).join("") : `<div class="empty-card">No interventions have been generated.</div>`;
+  list.querySelectorAll("button[data-vendor-response]").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = state.interventions.find(intervention => intervention.id === button.dataset.id);
+      if (!item || item.status !== "dispatched") return;
+      if (!requireRole("operator", "record a vendor response")) return;
+      const vendor = button.dataset.vendor;
+      const response = button.dataset.vendorResponse;
+      const targetVendors = interventionVendors(item);
+      if (!targetVendors.includes(vendor) || !["accepted", "acknowledged"].includes(response)) return;
+      const now = new Date().toISOString();
+      item.targetVendors = targetVendors;
+      item.vendorResponses ||= {};
+      item.vendorResponses[vendor] = {
+        status: response,
+        at: now,
+        actor: `local-${currentRole}`
+      };
+      recordAudit("vendor_intervention_response", item.id, `${vendor} · ${response}`);
+      saveState();
+      renderAll();
+      showNotice(`${vendor} ${response} ${item.id}.`, "success");
+    });
+  });
   list.querySelectorAll("button[data-action]").forEach(button => {
     button.addEventListener("click", () => {
       const item = state.interventions.find(intervention => intervention.id === button.dataset.id);
@@ -1798,13 +1876,24 @@ function renderInterventions() {
           showNotice("A completion note is required before closing dispatched work.", "error");
           return;
         }
+        const pendingVendors = interventionVendors(item).filter(vendor =>
+          !["accepted", "acknowledged"].includes(item.vendorResponses?.[vendor]?.status)
+        );
+        if (pendingVendors.length) {
+          showNotice(`Vendor response required from ${pendingVendors.join(" and ")} before completion.`, "error");
+          return;
+        }
         item.completionNotes = completionNotes;
       }
       item.status = ({ approve: "approved", dispatch: "dispatched", complete: "completed", skip: "skipped" })[button.dataset.action];
       item.transitions ||= [];
       item.transitions.push({ status: item.status, at: now.toISOString(), actor: `local-${currentRole}` });
       if (item.status === "approved") item.approvedAt = now.toISOString();
-      if (item.status === "dispatched") item.dispatchedAt = now.toISOString();
+      if (item.status === "dispatched") {
+        item.dispatchedAt = now.toISOString();
+        item.targetVendors = interventionVendors(item);
+        item.vendorResponses ||= {};
+      }
       if (item.status === "skipped") item.skippedAt = now.toISOString();
       if (item.status === "completed") item.completedAt = now.toISOString();
       recordAudit("intervention_transition", item.id, `${previousStatus} → ${item.status}`);
