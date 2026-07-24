@@ -1,4 +1,4 @@
-const CACHE_NAME = "311-field-intelligence-v1";
+const CACHE_NAME = "311-field-intelligence-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
