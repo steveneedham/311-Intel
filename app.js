@@ -65,6 +65,7 @@ let operationalMapSearchLayer = null;
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
+let workflowState = { enabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
 const vehicleWatchLocations = [
   {
     id: "WATCH-GOODALE-OLENTANGY",
@@ -182,10 +183,18 @@ async function writeDurableState() {
 }
 
 async function loadDurableState() {
-  const [workflow, audit] = await Promise.all([
+  const [workflow, audit, workflows] = await Promise.all([
     apiJson("/api/state"),
-    apiJson("/api/audit")
+    apiJson("/api/audit"),
+    apiJson("/api/workflows")
   ]);
+  workflowState = {
+    enabled: workflows.enabled,
+    intervalSeconds: workflows.interval_seconds,
+    runs: workflows.runs || [],
+    deliveryCount: workflows.delivery_count || 0,
+    status: "available"
+  };
   durableSession.version = workflow.version;
   if (workflow.state?.issues) {
     state = {
@@ -205,6 +214,7 @@ function renderDurableMode() {
   const persistenceNote = document.getElementById("persistenceNote");
   const activityNote = document.getElementById("activityStorageNote");
   authButton.hidden = !durableSession.available;
+  document.getElementById("workflowMonitor").hidden = !durableSession.authenticated;
   roleSelect.disabled = durableSession.authenticated;
   roleLabel.textContent = durableSession.authenticated ? "Authenticated role" : "Trial role";
   authButton.textContent = durableSession.authenticated
@@ -286,12 +296,37 @@ async function signOutDurableMode() {
     csrf: "",
     version: 0
   };
+  workflowState = { enabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
   currentRole = "viewer";
   localStorage.setItem(ROLE_KEY, currentRole);
   document.getElementById("roleSelect").value = currentRole;
   renderDurableMode();
   renderAll();
   showNotice("Signed out. Durable records remain on the server; local trial controls are available in Viewer mode.");
+}
+
+async function runServerWorkflows() {
+  if (!requireRole("admin", "run server workflows")) return;
+  try {
+    await durableSaveQueue;
+    const result = await apiJson("/api/workflows/run", {
+      method: "POST",
+      csrf: true,
+      body: {}
+    });
+    const workflows = await apiJson("/api/workflows");
+    workflowState = {
+      enabled: workflows.enabled,
+      intervalSeconds: workflows.interval_seconds,
+      runs: workflows.runs || [],
+      deliveryCount: workflows.delivery_count || 0,
+      status: "available"
+    };
+    renderActivity();
+    showNotice(`Server workflows completed with status ${result.status}.`, result.status === "success" ? "success" : "");
+  } catch (error) {
+    showNotice(`Workflow run failed: ${error.message}`, "error");
+  }
 }
 
 function showNotice(message, tone = "") {
@@ -1254,6 +1289,23 @@ function renderOutcomes() {
 }
 
 function renderActivity() {
+  const workflowList = document.getElementById("workflowRunList");
+  const runButton = document.getElementById("runWorkflows");
+  runButton.disabled = !durableSession.authenticated || !roleAllows("admin");
+  const recentRuns = workflowState.runs.slice(0, 6);
+  workflowList.innerHTML = durableSession.authenticated ? `
+    <p class="section-note">${workflowState.enabled
+      ? `Scheduler enabled · every ${workflowState.intervalSeconds} seconds · ${workflowState.deliveryCount} deduplicated delivery states stored`
+      : `Scheduler disabled · ${workflowState.deliveryCount} deduplicated delivery states stored · Administrator may run a local verification manually`}</p>
+    <div class="workflow-run-grid">${recentRuns.length ? recentRuns.map(run => `
+      <article class="workflow-run">
+        <span class="badge badge-${run.status === "success" ? "completed" : run.status === "failed" ? "critical" : "standard"}">${escapeHtml(label(run.status))}</span>
+        <h4>${escapeHtml(label(run.workflow))}</h4>
+        <p>${new Date(run.completed_at).toLocaleString()} · ${escapeHtml(run.trigger)}</p>
+        <p>${run.workflow === "daily_brief"
+          ? `${run.output.new_request_count ?? 0} new · ${run.output.unresolved_critical_count ?? 0} critical · ${run.output.dispatched_intervention_count ?? 0} dispatched`
+          : `${run.output.new_delivery_count ?? 0} new delivery states · ${run.output.deduplicated_state_count ?? 0} unchanged states suppressed`}</p>
+      </article>`).join("") : `<div class="empty-card">No workflow runs recorded yet.</div>`}</div>` : "";
   const ledger = document.getElementById("activityLedger");
   const entries = (state.auditLog || []).toReversed();
   ledger.innerHTML = entries.length ? entries.map(entry => `
@@ -1933,6 +1985,7 @@ document.getElementById("authButton").addEventListener("click", async () => {
 document.getElementById("closeAuth").addEventListener("click", () => document.getElementById("authDialog").close());
 document.getElementById("cancelAuth").addEventListener("click", () => document.getElementById("authDialog").close());
 document.getElementById("authForm").addEventListener("submit", submitAuth);
+document.getElementById("runWorkflows").addEventListener("click", runServerWorkflows);
 document.getElementById("subscriptionForm").addEventListener("submit", submitSubscription);
 document.getElementById("importFile").addEventListener("change", event => {
   const [file] = event.target.files;

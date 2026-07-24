@@ -448,6 +448,11 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
 .full-field { grid-column: 1 / -1; }
 .form-error { min-height: 18px; margin: 12px 0 0; color: var(--red); font-size: 0.75rem; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.workflow-monitor { margin-bottom: 20px; padding: 22px; border: 1px solid var(--line); background: var(--panel); }
+.workflow-run-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 18px; }
+.workflow-run { padding: 14px; border: 1px solid var(--line); background: var(--paper); }
+.workflow-run h4 { margin: 5px 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: 1rem; font-weight: 400; }
+.workflow-run p { color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
 
 .hotspot-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr); gap: 20px; }
 .map-panel { min-height: 520px; padding: 24px; }

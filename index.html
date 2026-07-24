@@ -414,6 +414,16 @@
         </div>
         <p class="section-note" id="activityStorageNote">Append-only within this browser trial. Production use still requires authenticated identities and server-enforced immutable storage.</p>
       </div>
+      <section class="workflow-monitor" id="workflowMonitor" hidden aria-labelledby="workflow-monitor-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Scheduled operations</p>
+            <h3 id="workflow-monitor-title">Workflow runs</h3>
+          </div>
+          <button class="secondary-button" id="runWorkflows" type="button">Run now</button>
+        </div>
+        <div id="workflowRunList"></div>
+      </section>
       <div class="activity-ledger" id="activityLedger"></div>
     </section>
   </main>
