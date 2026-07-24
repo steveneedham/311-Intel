@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "inspected_at": "2026-07-24T00:00:00Z",
+  "source": {
+    "platform": "Base44",
+    "app_name": "311",
+    "app_id": "6a614b54abec07520930dbea",
+    "access": "read_only"
+  },
+  "artifacts": {
+    "MicromobilityComplaint": {
+      "records": 104,
+      "role": "preserved source evidence",
+      "snapshot": "base44-live-snapshot.json"
+    },
+    "schema_only_entities": {
+      "records": 0,
+      "count": 9,
+      "names": [
+        "MicromobilityHotspot",
+        "InterventionRecommendation",
+        "InterventionOutcome",
+        "CityZone",
+        "OperatorDeployment",
+        "ExternalEvent",
+        "WeatherSnapshot",
+        "FieldTeam",
+        "AlertSubscription"
+      ],
+      "role": "available data contracts, not populated live data"
+    },
+    "User": {
+      "records": 0,
+      "role": "platform schema only; not imported"
+    }
+  },
+  "preservation": {
+    "base44_records_modified": false,
+    "base44_credits_used": false,
+    "repository_is_source_of_truth": true
+  }
+}

@@ -63,6 +63,14 @@ available data proves.
   emails, telephone numbers, and free-text descriptions.
 - Local alert rules deduplicate unchanged request states.
 - GA4 property `G-V40E4MZEMV` is configured.
+- A privacy-safe Site Metrics view distinguishes the configured GA4 collection
+  tag from the still-unconnected Reporting API. It shows browser-local section
+  counts only on the current device and tests current reachability without
+  presenting that check as historical uptime.
+- Base44 artifacts are integrated read-only: 104 preserved
+  `MicromobilityComplaint` records support the source snapshot, while nine
+  unpopulated operational entity schemas are labeled as available data
+  contracts rather than live derived data. GitHub remains the source of truth.
 - The public GitHub Pages build is an installable mobile PWA with an offline
   application shell, touch-friendly request cards, safe-area spacing, and
   deep links to operational views. It is clearly labeled as a demo and links
@@ -83,6 +91,25 @@ identity-provider integration, email/SMS delivery, or automatic vendor
 enforcement. OneView matching is a human-reviewed lookup, not an undocumented
 scraper or API integration. Base44 and GitHub are not modified by running the
 trial.
+
+## Base44 operating model
+
+Use Base44 as a narrow, low-credit prototyping and source-artifact layer. Keep
+the repository and durable service as the implementation source of truth; do
+bulk analysis, tests, scheduled synchronization, and deployment work there.
+Read-only Base44 snapshots may be versioned when they add verified evidence.
+Only spend Base44 agent credits on a small, reversible trial after the exact
+change and verification path are known. Do not regenerate the full application
+or manufacture records for empty entities merely to populate the interface.
+
+## Site measurement
+
+The GA4 browser tag collects aggregate usage for property `G-V40E4MZEMV`, but
+this repository does not contain GA4 Reporting API credentials. Consequently,
+the Site Metrics view does not claim a most-used audience or sitewide top
+pages. Connecting a least-privilege GA4 reporting service can populate those
+aggregate fields later. A separate external monitor is required before the
+site can publish a historical uptime percentage.
 
 ## Run locally
 
@@ -124,6 +151,12 @@ append-only SQLite history. Alert states use the subscription, request,
 lifecycle status, and severity as a unique key, so an unchanged condition is
 not delivered twice. Authenticated users can inspect recent runs in Activity;
 only an Administrator can trigger a manual verification run.
+
+Production deployments should also set `APP_ENV=production`. That enables a
+fail-closed configuration gate requiring secure cookies, an Administrator
+credential, the scheduler and City sync, an absolute persistent database path,
+single-instance acknowledgement, and confirmation that backups are configured.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the complete contract.
 
 To include a read-only refresh of the official City 311 public feed in each
 scheduler cycle, add:

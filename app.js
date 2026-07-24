@@ -1,5 +1,7 @@
 const STORAGE_KEY = "311-field-intelligence-trial-v1";
 const ROLE_KEY = "311-field-intelligence-trial-role";
+const SECTION_VIEW_KEY = "311-field-intelligence-section-views-v1";
+const SECTION_VIEW_EVENTS_KEY = "311-field-intelligence-section-view-events-v1";
 const requestEvidenceOverrides = {
   "CAS-3085935-H5M2M1": {
     description: "Spin scooter blocking ADA accessibility on the sidewalk at 4th Avenue and 4th Street; a second improperly parked scooter was reported at 4th Street and 5th Avenue.",
@@ -83,6 +85,12 @@ let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
 let workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
 let policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "loading" };
+let siteMetricsState = {
+  ga4: { measurement_id: "G-V40E4MZEMV", status: "reporting_api_not_connected" },
+  uptime: { status: "current_reachability_only" }
+};
+let base44ArtifactState = null;
+let currentReachability = null;
 const vehicleWatchLocations = [
   {
     id: "WATCH-GOODALE-OLENTANGY",
@@ -1045,6 +1053,152 @@ function renderMetrics() {
   });
 }
 
+function sectionViewCounts() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SECTION_VIEW_KEY));
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+function recordSectionView(section) {
+  const counts = sectionViewCounts();
+  counts[section] = (counts[section] || 0) + 1;
+  localStorage.setItem(SECTION_VIEW_KEY, JSON.stringify(counts));
+  let events = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(SECTION_VIEW_EVENTS_KEY));
+    if (Array.isArray(saved)) events = saved;
+  } catch {
+    events = [];
+  }
+  events.push({ section, at: new Date().toISOString() });
+  localStorage.setItem(
+    SECTION_VIEW_EVENTS_KEY,
+    JSON.stringify(events.filter(event => Date.now() - new Date(event.at).getTime() <= 90 * 86400000))
+  );
+  if (typeof window.gtag === "function") {
+    window.gtag("event", "section_view", { section_name: section });
+  }
+}
+
+function localViewWindows() {
+  let events = [];
+  try {
+    const saved = JSON.parse(localStorage.getItem(SECTION_VIEW_EVENTS_KEY));
+    if (Array.isArray(saved)) events = saved;
+  } catch {
+    events = [];
+  }
+  const now = Date.now();
+  return [1, 3, 7, 30, 60, 90].map(days => ({
+    days,
+    count: events.filter(event => now - new Date(event.at).getTime() <= days * 86400000).length
+  }));
+}
+
+function metricRows(rows) {
+  return `<dl class="metric-report">${rows.map(([term, value]) => `
+    <div class="metric-report-row">
+      <dt>${escapeHtml(term)}</dt>
+      <dd>${value}</dd>
+    </div>
+  `).join("")}</dl>`;
+}
+
+function renderSiteMetrics() {
+  const reportingConnected = siteMetricsState.ga4?.status === "connected";
+  const counts = Object.entries(sectionViewCounts()).sort((a, b) => b[1] - a[1]);
+  const topLocal = counts.length
+    ? counts.slice(0, 5).map(([section, count]) => `${escapeHtml(label(section))} — ${count}`).join("<br>")
+    : "No section views recorded on this device yet.";
+  const viewWindows = localViewWindows();
+  const reachability = currentReachability
+    ? `<span class="metric-status">${currentReachability.ok ? "Reachable now" : "Unavailable now"}</span><br>${escapeHtml(currentReachability.detail)}`
+    : "Run a current reachability check. Historical uptime monitoring is not connected.";
+
+  document.getElementById("siteMetricsSummary").innerHTML = [
+    ["GA4 collection", siteMetricsState.ga4?.measurement_id || "Not configured", "Aggregate measurement tag"],
+    ["Reporting", reportingConnected ? "Connected" : "Not connected", "No aggregate audience claim"],
+    ["Local section views", counts.reduce((sum, [, count]) => sum + count, 0), "This device only"],
+    ["Uptime history", "Unavailable", "Current reachability only"]
+  ].map(([title, value, note]) => `
+    <article class="metric">
+      <span class="metric-label">${escapeHtml(title)}</span>
+      <strong class="metric-value">${escapeHtml(value)}</strong>
+      <span class="metric-note">${escapeHtml(note)}</span>
+    </article>
+  `).join("");
+
+  document.getElementById("audienceMetrics").innerHTML = metricRows([
+    ["Measurement", `<span class="metric-status">GA4 configured</span>`],
+    ["Who uses it most", reportingConnected ? "Aggregate report available." : "Reporting connection required. No visitor groups are inferred from the browser tag."]
+  ]);
+  document.getElementById("pageMetrics").innerHTML = metricRows([
+    ["Sitewide top pages", reportingConnected ? "Aggregate report available." : "Reporting connection required."],
+    ["This device only", topLocal]
+  ]) + `
+    <div class="view-window-grid" aria-label="View periods recorded on this device">
+      ${viewWindows.map(window => `
+        <div><strong>${window.count}</strong><span>Past ${window.days} ${window.days === 1 ? "day" : "days"}</span></div>
+      `).join("")}
+    </div>
+    <p class="metric-boundary-note">These windows begin when this browser first records a section view. Connect GA4 Reporting for sitewide 1-, 3-, 7-, 30-, 60-, and 90-day views.</p>
+  `;
+  document.getElementById("uptimeMetrics").innerHTML = metricRows([
+    ["Current status", reachability],
+    ["Historical uptime", "Monitoring service not connected; no percentage is claimed."]
+  ]);
+  document.getElementById("measurementBoundary").innerHTML = `
+    <p class="metric-boundary-note">GA4 collection is configured, but its Reporting API is not connected to this demo. Section counts shown here remain in this browser only. A successful check confirms current reachability, not historical uptime or service reliability.</p>
+  `;
+
+  const artifacts = base44ArtifactState?.artifacts;
+  document.getElementById("base44Artifacts").innerHTML = artifacts ? `
+    <p class="metric-boundary-note">A read-only snapshot from Base44 app <strong>${escapeHtml(base44ArtifactState.source.app_name)}</strong> is integrated as source evidence. GitHub remains the source of truth, and no Base44 records or credits were changed during this inspection.</p>
+    <div class="artifact-counts">
+      <div><strong>${escapeHtml(artifacts.MicromobilityComplaint.records)}</strong><span>preserved complaint records</span></div>
+      <div><strong>${escapeHtml(artifacts.schema_only_entities.count)}</strong><span>schema-only operational entities</span></div>
+      <div><strong>${escapeHtml(artifacts.schema_only_entities.records)}</strong><span>populated records in those derived entities</span></div>
+    </div>
+  ` : `<p class="metric-boundary-note">Base44 artifact inventory is unavailable. No derived Base44 data is assumed.</p>`;
+}
+
+async function hydrateSiteMetrics() {
+  const [metricsResult, artifactResult] = await Promise.allSettled([
+    fetch("./site-metrics.json", { cache: "no-store" }).then(response => {
+      if (!response.ok) throw new Error("metrics unavailable");
+      return response.json();
+    }),
+    fetch("./base44-artifacts.json", { cache: "no-store" }).then(response => {
+      if (!response.ok) throw new Error("artifacts unavailable");
+      return response.json();
+    })
+  ]);
+  if (metricsResult.status === "fulfilled") siteMetricsState = metricsResult.value;
+  if (artifactResult.status === "fulfilled") base44ArtifactState = artifactResult.value;
+  renderSiteMetrics();
+}
+
+async function checkCurrentReachability() {
+  const button = document.getElementById("checkUptime");
+  button.disabled = true;
+  const started = performance.now();
+  try {
+    const response = await fetch(`./index.html?reachability=${Date.now()}`, { cache: "no-store" });
+    currentReachability = {
+      ok: response.ok,
+      detail: response.ok ? `${Math.round(performance.now() - started)} ms response from this site.` : `HTTP ${response.status}.`
+    };
+  } catch {
+    currentReachability = { ok: false, detail: "This device could not reach the site." };
+  } finally {
+    button.disabled = false;
+    renderSiteMetrics();
+  }
+}
+
 function renderQueueFilterOptions() {
   const zoneFilter = document.getElementById("zoneFilter");
   const selectedZone = zoneFilter.value || "all";
@@ -1102,10 +1256,11 @@ function renderQueue() {
     <tr data-id="${escapeHtml(issue.id)}" class="${selectedIssueId === issue.id ? "selected" : ""}" tabindex="0">
       <td><span class="badge badge-${issue.priority}">${label(issue.priority)}</span></td>
       <td><span class="case-title">${escapeHtml(issue.type)}</span><span class="case-meta">${escapeHtml(issue.id)} · ${escapeHtml(issue.address)}</span></td>
+      <td>${escapeHtml(issue.operator || "unknown")}</td>
       <td>${escapeHtml(issue.zone)}</td>
       <td>${ageLabel(issue.reportedAt)}</td>
       <td><span class="badge badge-${issue.status}">${label(issue.status)}</span></td>
-    </tr>`).join("") : `<tr><td colspan="5">No requests match these filters.</td></tr>`;
+    </tr>`).join("") : `<tr><td colspan="6">No requests match these filters.</td></tr>`;
 
   rows.querySelectorAll("tr[data-id]").forEach(row => {
     const select = () => {
@@ -2401,6 +2556,7 @@ function renderAll() {
   renderAlerts();
   renderActivity();
   renderOperationalMap();
+  renderSiteMetrics();
   document.getElementById("openIntake").disabled = !roleAllows("operator");
   document.getElementById("importFile").disabled = !roleAllows("operator");
   document.getElementById("resetDemo").disabled = !roleAllows("admin");
@@ -2418,6 +2574,8 @@ document.querySelectorAll(".nav-item").forEach(button => {
       window.setTimeout(() => operationalMap?.invalidateSize(), 0);
     }
     history.replaceState(null, "", `#${button.dataset.view}`);
+    recordSectionView(button.dataset.view);
+    if (button.dataset.view === "site-metrics") renderSiteMetrics();
     button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   });
 });
@@ -2508,6 +2666,7 @@ document.getElementById("closeAuth").addEventListener("click", () => document.ge
 document.getElementById("cancelAuth").addEventListener("click", () => document.getElementById("authDialog").close());
 document.getElementById("authForm").addEventListener("submit", submitAuth);
 document.getElementById("runWorkflows").addEventListener("click", runServerWorkflows);
+document.getElementById("checkUptime").addEventListener("click", checkCurrentReachability);
 document.getElementById("subscriptionForm").addEventListener("submit", submitSubscription);
 document.getElementById("importFile").addEventListener("change", event => {
   const [file] = event.target.files;
@@ -2545,7 +2704,8 @@ Promise.all([
   hydrateSlaEvidence(),
   hydrateHistorical311(),
   hydrateEvents(),
-  hydratePolicyBoundaries()
+  hydratePolicyBoundaries(),
+  hydrateSiteMetrics()
 ]).then(initializeDurableMode).finally(() => {
   renderDurableMode();
   renderAll();

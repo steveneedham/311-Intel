@@ -37,10 +37,13 @@ Recommended runtime values:
 APP_HOST=0.0.0.0
 PORT=8080
 APP_DATABASE=/data/311-intel.sqlite3
+APP_ENV=production
 APP_SECURE_COOKIES=1
 APP_ENABLE_SCHEDULER=1
 APP_ENABLE_CITY_SYNC=1
 APP_SCHEDULER_INTERVAL_SECONDS=300
+APP_SINGLE_INSTANCE=1
+APP_BACKUP_CONFIRMED=1
 ```
 
 `APP_ENABLE_SCHEDULER` should be enabled on exactly one instance. When
@@ -48,6 +51,13 @@ APP_SCHEDULER_INTERVAL_SECONDS=300
 `maps2.columbus.gov`. The integration is read-only at the source: it retrieves
 the official public ArcGIS feed and writes only normalized source facts into
 the app's own SQLite state.
+
+`APP_ENV=production` activates a fail-closed startup gate. The service refuses
+to start unless an Administrator password, secure cookies, City sync, the
+scheduler, a non-loopback host, an absolute database path, the single-instance
+acknowledgement, and the backup acknowledgement are all present. Set
+`APP_BACKUP_CONFIRMED=1` only after automated snapshots or backups have been
+configured and a restore procedure has been documented.
 
 ## Local container verification
 
