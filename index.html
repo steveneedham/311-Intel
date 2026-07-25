@@ -45,10 +45,13 @@
     </div>
     <div class="masthead-meta">
       <span class="live-mark" id="dataMode"><span></span> Local trial</span>
-      <span class="source-refresh-status" id="cityFeedStatus" role="status">
-        <span>Official 311 pull</span>
-        <time id="cityFeedFetchedAt">Unavailable</time>
-      </span>
+      <details class="source-refresh-status" id="dataFeedStatus">
+        <summary>
+          <span>Data feed updates</span>
+          <time id="dataFeedUpdatedAt">Loading…</time>
+        </summary>
+        <div class="data-feed-update-list" id="dataFeedUpdateList" aria-label="Data feed update status"></div>
+      </details>
       <label class="role-control"><span id="roleControlLabel">Trial role</span>
         <select id="roleSelect">
           <option value="viewer">Viewer</option>
@@ -758,6 +761,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/posthog-config.js"></script>
   <script src="posthog-init.js"></script>
-  <script src="app.js?v=20260725-resolved"></script>
+  <script src="app.js?v=20260725-data-feeds"></script>
 </body>
 </html>
