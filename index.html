@@ -45,6 +45,10 @@
     </div>
     <div class="masthead-meta">
       <span class="live-mark" id="dataMode"><span></span> Local trial</span>
+      <span class="source-refresh-status" id="cityFeedStatus" role="status">
+        <span>Official 311 pull</span>
+        <time id="cityFeedFetchedAt">Unavailable</time>
+      </span>
       <label class="role-control"><span id="roleControlLabel">Trial role</span>
         <select id="roleSelect">
           <option value="viewer">Viewer</option>
@@ -206,12 +210,20 @@
         <p class="section-note">Street tiles provide geographic context. Every plotted record retains its source identifier and coordinates.</p>
       </div>
       <form class="map-controls" id="mapControls">
-        <label class="map-address-control"><span>Search near any address</span>
-          <span class="map-search-row">
-            <input id="mapAddressSearch" placeholder="2041 N High St, Columbus, OH">
+        <div class="map-address-control">
+          <label for="mapAddressSearch">Search near any address</label>
+          <div class="map-search-row">
+            <input id="mapAddressSearch" type="search" autocomplete="street-address" maxlength="160" placeholder="2041 N High St, Columbus, OH" aria-describedby="mapSearchPrivacy">
             <button class="secondary-button" type="submit">Find</button>
-          </span>
-        </label>
+            <button class="secondary-button" id="mapNearMe" type="button">Near me</button>
+          </div>
+          <div class="map-saved-addresses">
+            <span id="mapSavedAddressesLabel">Recent on this device</span>
+            <div class="map-address-chips" id="mapSavedAddresses" aria-labelledby="mapSavedAddressesLabel"></div>
+            <button class="map-clear-addresses" id="mapClearAddresses" type="button" hidden>Clear</button>
+          </div>
+          <p class="map-search-privacy" id="mapSearchPrivacy">Successful address searches stay only in this browser. “Near me” does not save or send your precise location.</p>
+        </div>
         <label><span>311 requests</span>
           <select id="mapComplaintFilter">
             <option value="open">Open requests</option>
