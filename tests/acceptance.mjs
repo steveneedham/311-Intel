@@ -71,17 +71,23 @@ try {
     `${expectedCityCount}-record City feed loads`
   );
   check(
-    await page.locator("#cityFeedFetchedAt").getAttribute("datetime") === new Date(cityFeed.fetched_at).toISOString()
-      && !(await page.locator("#cityFeedStatus").innerText()).includes("Unavailable"),
-    "visible City status uses the successful official-feed pull timestamp"
+    await page.locator("#dataFeedUpdatedAt").getAttribute("datetime") === new Date(base44Snapshot.exported_at).toISOString()
+      && (await page.locator("#dataFeedStatus").innerText()).includes("Data feed updates"),
+    "header shows the latest update across all loaded data feeds"
   );
-  check(await page.evaluate(fetchedAt => {
-    updateCityFeedStatus("");
-    const unavailable = document.getElementById("cityFeedFetchedAt").textContent === "Unavailable"
-      && !document.getElementById("cityFeedFetchedAt").hasAttribute("datetime");
-    updateCityFeedStatus(fetchedAt);
-    return unavailable;
-  }, cityFeed.fetched_at), "City status degrades honestly when no successful pull timestamp exists");
+  check(await page.evaluate(({ fetchedAt, recordCount }) => {
+    const city = dataFeedUpdates.get("city-311");
+    return city?.updatedAt?.toISOString() === new Date(fetchedAt).toISOString()
+      && city.detail.includes(String(recordCount));
+  }, { fetchedAt: cityFeed.fetched_at, recordCount: cityFeed.records.length }), "City 311 remains a separately timestamped feed");
+  check(
+    await page.locator("#dataFeedUpdateList .data-feed-update").count() === 13
+      && await page.locator("#dataFeedUpdateList").innerText().then(text =>
+        ["Base44 complaint snapshot", "City of Columbus 311", "GBFS vehicle positions", "External event schedule", "Mobility policy boundaries", "Daily 311 forecast", "Populus operations"]
+          .every(label => text.includes(label))
+      ),
+    "expanded status includes every application data feed"
+  );
   check(
     await page.evaluate(
       ({ expectedCount, baseIds }) => {

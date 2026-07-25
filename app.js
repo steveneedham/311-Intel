@@ -109,6 +109,7 @@ let siteMetricsState = {
 };
 let base44ArtifactState = null;
 let currentReachability = null;
+const dataFeedUpdates = new Map();
 const vehicleWatchLocations = [
   {
     id: "WATCH-GOODALE-OLENTANGY",
@@ -284,7 +285,6 @@ async function loadDurableState() {
       auditLog: serverAuditEntries(audit.entries)
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    updateCityFeedStatus(state.cityFeedFetchedAt);
   } else if (roleAllows("operator")) {
     await writeDurableState();
   }
@@ -424,6 +424,69 @@ function showNotice(message, tone = "") {
   showNotice.timeout = window.setTimeout(() => {
     notice.className = "data-notice";
   }, 8000);
+}
+
+function parseFeedTimestamp(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number") {
+    const epoch = new Date(value);
+    return Number.isNaN(epoch.getTime()) ? null : epoch;
+  }
+  const snapshotMatch = String(value).match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  const parsed = snapshotMatch
+    ? new Date(Date.UTC(
+      Number(snapshotMatch[1]),
+      Number(snapshotMatch[2]) - 1,
+      Number(snapshotMatch[3]),
+      Number(snapshotMatch[4]),
+      Number(snapshotMatch[5]),
+      Number(snapshotMatch[6])
+    ))
+    : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function recordDataFeedUpdate(id, labelText, updatedAt, detail = "", status = "loaded") {
+  dataFeedUpdates.set(id, {
+    id,
+    label: labelText,
+    updatedAt: parseFeedTimestamp(updatedAt),
+    detail,
+    status
+  });
+  renderDataFeedUpdates();
+}
+
+function renderDataFeedUpdates() {
+  const status = document.getElementById("dataFeedStatus");
+  const time = document.getElementById("dataFeedUpdatedAt");
+  const list = document.getElementById("dataFeedUpdateList");
+  if (!status || !time || !list) return;
+  const feeds = [...dataFeedUpdates.values()].toSorted((a, b) => {
+    if (a.updatedAt && b.updatedAt) return b.updatedAt - a.updatedAt;
+    if (a.updatedAt) return -1;
+    if (b.updatedAt) return 1;
+    return a.label.localeCompare(b.label);
+  });
+  const latest = feeds.find(feed => feed.updatedAt);
+  if (latest) {
+    time.dateTime = latest.updatedAt.toISOString();
+    time.textContent = latest.updatedAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    status.title = `${feeds.length} data feeds checked · latest update from ${latest.label} at ${latest.updatedAt.toLocaleString()}`;
+  } else {
+    time.textContent = feeds.length ? "Timestamps unavailable" : "Loading…";
+    time.removeAttribute("datetime");
+    status.title = feeds.length ? `${feeds.length} data feeds checked; no source supplied a valid update timestamp.` : "Data feeds are loading.";
+  }
+  list.innerHTML = feeds.length
+    ? feeds.map(feed => `<article class="data-feed-update${feed.status === "unavailable" ? " is-unavailable" : ""}">
+        <strong>${escapeHtml(feed.label)}</strong>
+        ${feed.updatedAt
+          ? `<time datetime="${feed.updatedAt.toISOString()}">${feed.updatedAt.toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time>`
+          : `<span class="feed-time-unavailable">${feed.status === "unavailable" ? "Unavailable" : "No timestamp"}</span>`}
+        <p>${escapeHtml(feed.detail || (feed.status === "unavailable" ? "Feed could not be loaded." : "Feed loaded; the source did not provide an update timestamp."))}</p>
+      </article>`).join("")
+    : `<article class="data-feed-update is-unavailable"><strong>Loading data feeds</strong><span class="feed-time-unavailable">In progress</span><p>Update details will appear as each source responds.</p></article>`;
 }
 
 function normalizedPriority(record) {
@@ -683,6 +746,7 @@ async function hydrateFromVerifiedSnapshot() {
     });
     state.snapshotExportedAt = snapshot.exported_at || "";
     state.base44SnapshotCount = normalized.length;
+    recordDataFeedUpdate("base44-complaints", "Base44 complaint snapshot", snapshot.exported_at, `${normalized.length.toLocaleString()} complaint records loaded`);
     saveState();
     const mode = document.getElementById("dataMode");
     mode.innerHTML = `<span></span> Base44 snapshot · ${state.issues.length}`;
@@ -690,12 +754,12 @@ async function hydrateFromVerifiedSnapshot() {
     return true;
   } catch (error) {
     console.warn("Verified Base44 snapshot unavailable; using local trial data.", error);
+    recordDataFeedUpdate("base44-complaints", "Base44 complaint snapshot", null, error.message, "unavailable");
     return false;
   }
 }
 
 async function hydrateFromCityFeed() {
-  updateCityFeedStatus("");
   try {
     const response = await fetch("columbus-311-current.json", { cache: "no-store" });
     if (!response.ok) throw new Error(`City feed request failed with ${response.status}`);
@@ -754,28 +818,13 @@ async function hydrateFromCityFeed() {
     const mode = document.getElementById("dataMode");
     mode.innerHTML = `<span></span> City 30-day feed · ${records.length}`;
     mode.title = `${refreshed} preserved Base44 records refreshed; ${added} additional City records added read-only${feed.fetched_at ? ` · fetched ${new Date(feed.fetched_at).toLocaleString()}` : ""}`;
-    updateCityFeedStatus(feed.fetched_at);
+    recordDataFeedUpdate("city-311", "City of Columbus 311", feed.fetched_at, `${records.length.toLocaleString()} current records loaded`);
     return { added, refreshed, total: state.issues.length };
   } catch (error) {
     console.warn("Current Columbus 311 public feed unavailable.", error);
+    recordDataFeedUpdate("city-311", "City of Columbus 311", null, error.message, "unavailable");
     return null;
   }
-}
-
-function updateCityFeedStatus(fetchedAt) {
-  const status = document.getElementById("cityFeedStatus");
-  const time = document.getElementById("cityFeedFetchedAt");
-  if (!status || !time) return;
-  const parsed = new Date(fetchedAt);
-  if (!fetchedAt || Number.isNaN(parsed.getTime())) {
-    time.textContent = "Unavailable";
-    time.removeAttribute("datetime");
-    status.title = "No verified successful pull timestamp is available.";
-    return;
-  }
-  time.dateTime = parsed.toISOString();
-  time.textContent = parsed.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
-  status.title = `Last successful read-only pull from the official City of Columbus 311 source: ${parsed.toLocaleString()}`;
 }
 
 async function hydrateOperationalSources() {
@@ -804,10 +853,20 @@ async function hydrateVehiclePositions() {
       pileups: detectPileups(vehicles),
       watchHistory: Array.isArray(historySnapshot.snapshots) ? historySnapshot.snapshots : []
     };
+    recordDataFeedUpdate("gbfs-positions", "GBFS vehicle positions", snapshot.snapshot_id, `${vehicles.length.toLocaleString()} vehicle positions loaded`);
+    const latestWatchSnapshot = vehicleState.watchHistory.at(-1);
+    recordDataFeedUpdate(
+      "gbfs-watch-history",
+      "GBFS watch history",
+      latestWatchSnapshot?.snapshot_id,
+      `${vehicleState.watchHistory.length.toLocaleString()} watch snapshots loaded`
+    );
     return true;
   } catch (error) {
     console.warn("GBFS vehicle positions unavailable.", error);
     vehicleState = { vehicles: [], snapshotId: "", sourceFile: "", pileups: [], watchHistory: [] };
+    recordDataFeedUpdate("gbfs-positions", "GBFS vehicle positions", null, error.message, "unavailable");
+    recordDataFeedUpdate("gbfs-watch-history", "GBFS watch history", null, error.message, "unavailable");
     return false;
   }
 }
@@ -821,9 +880,11 @@ async function hydrateSlaEvidence() {
       records: Array.isArray(evidence.records) ? evidence.records : [],
       status: evidence.transcription_status || "provisional"
     };
+    recordDataFeedUpdate("sla-evidence", "SLA evidence", evidence.generated_at, `${slaEvidenceState.records.length.toLocaleString()} provisional evidence records loaded`);
   } catch (error) {
     console.warn("Provisional SLA screenshot evidence unavailable.", error);
     slaEvidenceState = { records: [], status: "unavailable" };
+    recordDataFeedUpdate("sla-evidence", "SLA evidence", null, error.message, "unavailable");
   }
 }
 
@@ -836,9 +897,11 @@ async function hydrateHistorical311() {
       throw new Error("Historical extract did not pass its privacy contract.");
     }
     historicalState = { ...data, status: "verified-safe-extract" };
+    recordDataFeedUpdate("historical-311", "Historical 311 extract", data.generated_at, `${data.recordCount.toLocaleString()} privacy-safe records loaded`);
   } catch (error) {
     console.warn("Historical 311 extract unavailable.", error);
     historicalState = { records: [], status: "unavailable" };
+    recordDataFeedUpdate("historical-311", "Historical 311 extract", null, error.message, "unavailable");
   }
 }
 
@@ -856,9 +919,11 @@ async function hydrateEvents() {
       source: data.source,
       status: "verified-schedule"
     };
+    recordDataFeedUpdate("events", "External event schedule", data.source.verified_at, `${data.events.length.toLocaleString()} events loaded`);
   } catch (error) {
     console.warn("External event context unavailable.", error);
     eventState = { events: [], venue: null, source: null, status: "unavailable" };
+    recordDataFeedUpdate("events", "External event schedule", null, error.message, "unavailable");
   }
 }
 
@@ -871,6 +936,7 @@ async function hydrateDailyForecast() {
       throw new Error("Forecast output does not match schema version 1.");
     }
     forecastState = data;
+    recordDataFeedUpdate("daily-forecast", "Daily 311 forecast", data.published_at || data.as_of, data.status === "awaiting_first_forecast" ? "Awaiting the first published forecast" : "Forecast output loaded");
   } catch (error) {
     console.warn("Daily forecast output unavailable.", error);
     forecastState = {
@@ -880,6 +946,7 @@ async function hydrateDailyForecast() {
       history: [],
       event_comparisons: []
     };
+    recordDataFeedUpdate("daily-forecast", "Daily 311 forecast", null, error.message, "unavailable");
   }
 }
 
@@ -892,9 +959,11 @@ async function hydrateRequestVehicleTraces() {
       throw new Error("Vehicle trace output does not match schema version 1.");
     }
     vehicleTraceState = data;
+    recordDataFeedUpdate("vehicle-traces", "Request vehicle traces", data.generated_at, `${Number(data.matched_request_count || 0).toLocaleString()} matched requests`);
   } catch (error) {
     console.warn("Request vehicle traces unavailable.", error);
     vehicleTraceState = { status: "unavailable", traces: [], method: null };
+    recordDataFeedUpdate("vehicle-traces", "Request vehicle traces", null, error.message, "unavailable");
   }
 }
 
@@ -907,6 +976,7 @@ async function hydratePopulusOperations() {
       throw new Error("Populus context does not match schema version 1.");
     }
     populusState = data;
+    recordDataFeedUpdate("populus", "Populus operations", data.generated_at || data.as_of, `${data.observations.length.toLocaleString()} operational observations loaded`);
   } catch (error) {
     console.warn("Populus operational context unavailable.", error);
     populusState = {
@@ -914,6 +984,7 @@ async function hydratePopulusOperations() {
       idle_review_threshold_minutes: 120,
       observations: []
     };
+    recordDataFeedUpdate("populus", "Populus operations", null, error.message, "unavailable");
   }
 }
 
@@ -930,9 +1001,11 @@ async function hydratePolicyBoundaries() {
       method: payload.method || null,
       status: "ready"
     };
+    recordDataFeedUpdate("mobility-policy", "Mobility policy boundaries", payload.generated_at, `${policyBoundaryState.boundaries.length.toLocaleString()} policy boundaries loaded`);
   } catch (error) {
     console.warn("Published mobility-policy boundaries unavailable.", error);
     policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "unavailable" };
+    recordDataFeedUpdate("mobility-policy", "Mobility policy boundaries", null, error.message, "unavailable");
   }
 }
 
@@ -1336,8 +1409,18 @@ async function hydrateSiteMetrics() {
       return response.json();
     })
   ]);
-  if (metricsResult.status === "fulfilled") siteMetricsState = metricsResult.value;
-  if (artifactResult.status === "fulfilled") base44ArtifactState = artifactResult.value;
+  if (metricsResult.status === "fulfilled") {
+    siteMetricsState = metricsResult.value;
+    recordDataFeedUpdate("site-metrics", "Site metrics", siteMetricsState.generated_at, "Site measurement configuration loaded");
+  } else {
+    recordDataFeedUpdate("site-metrics", "Site metrics", null, metricsResult.reason?.message || "Feed could not be loaded.", "unavailable");
+  }
+  if (artifactResult.status === "fulfilled") {
+    base44ArtifactState = artifactResult.value;
+    recordDataFeedUpdate("base44-artifacts", "Base44 artifact inventory", base44ArtifactState.inspected_at, "Read-only integration inventory loaded");
+  } else {
+    recordDataFeedUpdate("base44-artifacts", "Base44 artifact inventory", null, artifactResult.reason?.message || "Feed could not be loaded.", "unavailable");
+  }
   renderSiteMetrics();
 }
 
