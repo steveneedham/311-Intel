@@ -159,8 +159,29 @@ try {
   check(challengeState.lifecycle === "received" && challengeState.challenge === "submitted_to_city", "operator challenge is recorded without dismissing or changing the request lifecycle");
   check((await page.locator("#detailPanel").innerText()).includes("no waiver implied") && (await page.locator("#dataNotice").innerText()).includes("No waiver"), "challenge UI explicitly rejects any presumed waiver or SLA pause");
   await page.locator("#roleSelect").selectOption("admin");
+  await page.locator('#issueRows tr[data-id="CAS-3082644-P9D1M0"]').click();
+  const oneViewLookup = page.locator('#detailPanel a[data-oneview-lookup]');
+  check(await oneViewLookup.count() === 1, "unmatched requests expose the public nearby-request lookup");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText(value) {
+          window.__copiedOneViewAddress = value;
+          return Promise.resolve();
+        }
+      }
+    });
+  });
+  await oneViewLookup.evaluate(element => element.addEventListener("click", event => event.preventDefault()));
+  await oneViewLookup.click();
+  await page.waitForFunction(() => window.__copiedOneViewAddress);
+  check(
+    await page.evaluate(() => window.__copiedOneViewAddress) === "875 MICHIGAN AVE",
+    "OneView lookup copies the selected request address"
+  );
+  check((await page.locator("#dataNotice").innerText()).includes("875 MICHIGAN AVE copied"), "OneView lookup confirms the copied address");
   await page.locator('#issueRows tr[data-id="CAS-3085657-R4J3G9"]').click();
-  check(await page.locator('#detailPanel a[href="https://columbusoh.oneviewcrm.cc/servicerequests/nearby"]').count() === 1, "unmatched requests expose the public nearby-request lookup");
   await page.locator("#roleSelect").selectOption("viewer");
   check(await page.locator('#evidenceReviewForm button[type="submit"]').isDisabled(), "Viewer cannot record cross-reference evidence");
   await page.locator("#roleSelect").selectOption("admin");
@@ -328,14 +349,39 @@ try {
   check(Boolean(interventionId), "hotspot creates an intervention recommendation");
 
   await page.locator('[data-view="interventions"]').click();
+  check((await page.locator("#interventions").innerText()).includes("These are not 311 requests") && (await page.locator("#interventions").innerText()).includes("no SLA") && (await page.locator("#interventions").innerText()).includes("above current vendor requirements"), "proactive dispatch is separated from required 311 handling and SLA compliance");
   check(await page.locator(`[data-action="approve"][data-id="${interventionId}"]`).isDisabled(), "Operator cannot approve intervention");
   check(await page.locator(`[data-action="dispatch"][data-id="${interventionId}"]`).count() === 0, "dispatch is unavailable before approval");
   await page.locator("#roleSelect").selectOption("admin");
   await page.locator(`[data-action="approve"][data-id="${interventionId}"]`).click();
   await page.locator(`[data-action="dispatch"][data-id="${interventionId}"]`).click();
+  check(await page.locator(`[data-vendor-response][data-id="${interventionId}"]`).count() === 4, "dispatch requests an accept-or-acknowledge response from both unattributed vendors");
   await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
   check((await page.locator("#dataNotice").innerText()).includes("completion note is required"), "completion without evidence is rejected");
   await page.locator(`[data-completion-note="${interventionId}"]`).fill("Field team verified the obstruction was cleared.");
+  await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
+  check((await page.locator("#dataNotice").innerText()).includes("Vendor response required from Spin and Veo"), "completion waits for every dispatched vendor");
+  await page.locator(`[data-vendor-response="acknowledged"][data-vendor="Spin"][data-id="${interventionId}"]`).click();
+  await page.locator(`[data-vendor-response="accepted"][data-vendor="Veo"][data-id="${interventionId}"]`).click();
+  await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
+  check((await page.locator("#dataNotice").innerText()).includes("Vendor routing record required from Spin and Veo"), "completion waits for every vendor routing record");
+
+  const spinRouting = page.locator(`form[data-vendor-routing][data-vendor="Spin"][data-id="${interventionId}"]`);
+  await spinRouting.locator('input[name="assignedTo"]').fill("Spin Columbus on-duty operations");
+  await spinRouting.locator('select[name="vendorPriority"]').selectOption("high");
+  await spinRouting.locator('select[name="routingMethod"]').selectOption("slack");
+  await spinRouting.locator('input[name="routingReference"]').fill("#columbus-ops · message 123");
+  await spinRouting.locator('textarea[name="evidenceNote"]').fill("On-duty team assigned to inspect and rebalance the forecast area.");
+  await spinRouting.locator('button[type="submit"]').click();
+
+  const veoRouting = page.locator(`form[data-vendor-routing][data-vendor="Veo"][data-id="${interventionId}"]`);
+  await veoRouting.locator('input[name="assignedTo"]').fill("Veo Columbus on-duty operations");
+  await veoRouting.locator('select[name="vendorPriority"]').selectOption("immediate");
+  await veoRouting.locator('select[name="routingMethod"]').selectOption("vendor_app");
+  await veoRouting.locator('input[name="routingReference"]').fill("VEO-OPS-875");
+  await veoRouting.locator('textarea[name="evidenceNote"]').fill("Vendor operations case opened for proactive field verification.");
+  await veoRouting.locator('button[type="submit"]').click();
+
   await page.locator(`[data-action="complete"][data-id="${interventionId}"]`).click();
   const lifecycle = await page.evaluate(id => {
     const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
@@ -344,9 +390,86 @@ try {
       outcome: state.outcomes.find(item => item.interventionId === id)
     };
   }, interventionId);
-  check(lifecycle.intervention.status === "completed", "intervention reaches completed state");
+  check(lifecycle.intervention.status === "completed", "proactive dispatch reaches completed state");
+  check(
+    lifecycle.intervention.requirementStatus === "above_current_311_requirements" &&
+    lifecycle.intervention.authorityBasis === "voluntary_pilot" &&
+    lifecycle.intervention.intendedEffect === "fewer_future_311_requests" &&
+    lifecycle.intervention.slaStatus === "not_applicable",
+    "forecast remains an above-requirement no-SLA pilot with an explicit prevention goal"
+  );
+  check(
+    lifecycle.intervention.vendorResponses.Spin.status === "acknowledged" &&
+    lifecycle.intervention.vendorResponses.Spin.assignedTo.includes("on-duty") &&
+    lifecycle.intervention.vendorResponses.Spin.routingMethod === "slack" &&
+    lifecycle.intervention.vendorResponses.Spin.evidenceNote.includes("forecast area") &&
+    lifecycle.intervention.vendorResponses.Veo.status === "accepted" &&
+    lifecycle.intervention.vendorResponses.Veo.vendorPriority === "immediate" &&
+    lifecycle.intervention.vendorResponses.Veo.routingMethod === "vendor_app",
+    "each vendor receipt, assignment, priority, internal route, and evidence are preserved"
+  );
   check(lifecycle.intervention.transitions.map(item => item.status).join(",") === "recommended,approved,dispatched,completed", "all lifecycle transitions are recorded");
   check(Boolean(lifecycle.outcome?.baselineStart && lifecycle.outcome?.postEnd), "completion creates explicit outcome windows");
+
+  await page.locator("#openIntervention").click();
+  await page.locator("#interventionTypeInput").selectOption("policy");
+  await page.locator("#interventionCadenceInput").selectOption("rule_policy_change");
+  await page.locator("#interventionZoneInput").fill("Harrison West");
+  await page.locator("#interventionStrategyInput").fill("Mandatory parking in this area");
+  await page.locator("#interventionRationaleInput").fill("Repeated sidewalk-blocking requests support a longer-term designated-parking intervention.");
+  await page.locator("#interventionStartInput").fill("2026-08-01");
+  await page.locator("#interventionEndInput").fill("2026-11-01");
+  await page.locator("#interventionLatitudeInput").fill("39.9791");
+  await page.locator("#interventionLongitudeInput").fill("-83.0172");
+  await page.locator("#interventionRadiusInput").fill("400");
+  await page.locator('#interventionForm button[type="submit"]').click();
+  const policyIntervention = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
+    return state.interventions.find(item => item.strategy === "Mandatory parking in this area");
+  });
+  check(
+    policyIntervention?.interventionType === "policy" &&
+    policyIntervention.cadence === "rule_policy_change" &&
+    policyIntervention.targetVendors.length === 2 &&
+    policyIntervention.mapArea.radiusMeters === 400 &&
+    policyIntervention.timeframeEnd === "2026-11-01",
+    "rule or policy intervention preserves its cadence, map area, timeframe, and responding vendors"
+  );
+
+  await page.locator("#openIntervention").click();
+  await page.locator("#interventionTypeInput").selectOption("experiment");
+  await page.locator("#interventionCadenceInput").selectOption("repeating");
+  await page.locator("#interventionRecurrenceInput").fill("Daily during the two-week test window");
+  await page.locator("#interventionZoneInput").fill("Harrison West");
+  await page.locator("#interventionStrategyInput").fill("Two-week mandatory-parking experiment");
+  await page.locator("#interventionRationaleInput").fill("Test whether a defined parking rule reduces repeat obstruction signals before permanent adoption.");
+  await page.locator("#interventionHypothesisInput").fill("Mandatory parking will reduce independent sidewalk-blocking requests in the test area.");
+  await page.locator("#interventionSuccessMeasureInput").fill("At least 25% fewer independent 311 requests");
+  await page.locator("#interventionStartInput").fill("2026-08-01");
+  await page.locator("#interventionEndInput").fill("2026-08-15");
+  await page.locator("#interventionLatitudeInput").fill("39.9791");
+  await page.locator("#interventionLongitudeInput").fill("-83.0172");
+  await page.locator("#interventionRadiusInput").fill("250");
+  await page.locator('#interventionForm button[type="submit"]').click();
+  const experimentIntervention = await page.evaluate(() => {
+    const state = JSON.parse(localStorage.getItem("311-field-intelligence-trial-v1"));
+    return state.interventions.find(item => item.strategy === "Two-week mandatory-parking experiment");
+  });
+  check(
+    experimentIntervention?.interventionType === "experiment" &&
+    experimentIntervention.cadence === "repeating" &&
+    experimentIntervention.recurrence.includes("Daily") &&
+    experimentIntervention.mapArea.radiusMeters === 250 &&
+    experimentIntervention.hypothesis.includes("reduce independent") &&
+    experimentIntervention.successMeasure.includes("25%") &&
+    experimentIntervention.plannedStart === "2026-08-01" &&
+    experimentIntervention.plannedEnd === "2026-08-15",
+    "experiment preserves its cadence, map area, hypothesis, measure, and planned window"
+  );
+  await page.locator('[data-view="map"]').click();
+  check(await page.locator("#mapInterventionsToggle").isChecked(), "intervention areas are enabled on the operational map");
+  check(await page.locator(".intervention-area-layer").count() >= 2, "active interventions render as defined map areas");
+  check((await page.locator("#mapResultCount").innerText()).includes("intervention areas"), "map summary counts active intervention areas");
 
   await page.locator('[data-view="site-metrics"]').click();
   const metricsText = await page.locator("#site-metrics").innerText();

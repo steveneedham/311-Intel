@@ -86,6 +86,19 @@ let mapRecentAddresses = loadMapRecentAddresses();
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
+let forecastState = {
+  schema_version: 1,
+  status: "loading",
+  forecast: null,
+  history: [],
+  event_comparisons: []
+};
+let vehicleTraceState = { status: "loading", traces: [], method: null };
+let populusState = {
+  status: "loading",
+  idle_review_threshold_minutes: 120,
+  observations: []
+};
 let workflowState = { enabled: false, citySyncEnabled: false, intervalSeconds: 0, runs: [], deliveryCount: 0, status: "unavailable" };
 let policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "loading" };
 let siteMetricsState = {
@@ -312,6 +325,9 @@ async function initializeDurableMode() {
       currentRole = session.role;
       localStorage.setItem(ROLE_KEY, currentRole);
       await loadDurableState();
+      if (typeof window.posthog !== "undefined") {
+        window.posthog.identify(session.username, { role: session.role });
+      }
     }
   } catch {
     durableSession.available = false;
@@ -348,6 +364,10 @@ async function submitAuth(event) {
     document.getElementById("roleSelect").value = currentRole;
     renderDurableMode();
     renderAll();
+    if (typeof window.posthog !== "undefined") {
+      window.posthog.identify(session.username, { role: session.role });
+      window.posthog.capture("user_signed_in", { role: session.role });
+    }
     showNotice(`Signed in as ${session.username}. Durable workflow storage is active.`, "success");
   } catch (authError) {
     error.textContent = authError.message;
@@ -370,6 +390,10 @@ async function signOutDurableMode() {
   document.getElementById("roleSelect").value = currentRole;
   renderDurableMode();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("user_signed_out");
+    window.posthog.reset();
+  }
   showNotice("Signed out. Durable records remain on the server; local trial controls are available in Viewer mode.");
 }
 
@@ -527,6 +551,7 @@ function normalizeImportedIssue(record) {
     operatorEvidence: operatorEvidence.evidence,
     sourceUrl: requestEvidence?.sourceUrl || operatorEvidence.sourceUrl || "",
     crossReferenceUrl: requestEvidence?.sourceUrl || operatorEvidence.sourceUrl || "",
+    crossReferencePhotoUrls: Array.isArray(record.crossReferencePhotoUrls) ? record.crossReferencePhotoUrls : [],
     crossReferenceSummary: requestEvidence?.description || "",
     crossReferenceStatus: requestEvidence?.officialStatus || "",
     crossReferenceEvidence: requestEvidence?.evidence || "",
@@ -597,6 +622,13 @@ async function importJsonFile(file) {
   if (unique.length || rejected) recordAudit("records_imported", file.name, `${unique.length} added; ${valid.length - unique.length} duplicates; ${rejected} sent to review`);
   saveState();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("records_imported", {
+      records_added: unique.length,
+      records_duplicate: valid.length - unique.length,
+      records_rejected: rejected,
+    });
+  }
   showNotice(
     `Imported ${unique.length} new request${unique.length === 1 ? "" : "s"}; ${valid.length - unique.length} duplicate${valid.length - unique.length === 1 ? "" : "s"} skipped; ${rejected} invalid record${rejected === 1 ? "" : "s"} sent to review.`,
     rejected ? "" : "success"
@@ -828,6 +860,61 @@ async function hydrateEvents() {
   }
 }
 
+async function hydrateDailyForecast() {
+  try {
+    const response = await fetch("daily-forecast.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Forecast request failed with ${response.status}`);
+    const data = await response.json();
+    if (data?.schema_version !== 1 || !Array.isArray(data.history) || !Array.isArray(data.event_comparisons)) {
+      throw new Error("Forecast output does not match schema version 1.");
+    }
+    forecastState = data;
+  } catch (error) {
+    console.warn("Daily forecast output unavailable.", error);
+    forecastState = {
+      schema_version: 1,
+      status: "unavailable",
+      forecast: null,
+      history: [],
+      event_comparisons: []
+    };
+  }
+}
+
+async function hydrateRequestVehicleTraces() {
+  try {
+    const response = await fetch("request-vehicle-traces.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Vehicle trace request failed with ${response.status}`);
+    const data = await response.json();
+    if (data?.schema_version !== 1 || !Array.isArray(data.traces)) {
+      throw new Error("Vehicle trace output does not match schema version 1.");
+    }
+    vehicleTraceState = data;
+  } catch (error) {
+    console.warn("Request vehicle traces unavailable.", error);
+    vehicleTraceState = { status: "unavailable", traces: [], method: null };
+  }
+}
+
+async function hydratePopulusOperations() {
+  try {
+    const response = await fetch("populus-zone-operations.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`Populus context request failed with ${response.status}`);
+    const data = await response.json();
+    if (data?.schema_version !== 1 || !Array.isArray(data.observations)) {
+      throw new Error("Populus context does not match schema version 1.");
+    }
+    populusState = data;
+  } catch (error) {
+    console.warn("Populus operational context unavailable.", error);
+    populusState = {
+      status: "unavailable",
+      idle_review_threshold_minutes: 120,
+      observations: []
+    };
+  }
+}
+
 async function hydratePolicyBoundaries() {
   try {
     const response = await fetch("mobility-policy-boundaries.json", { cache: "no-store" });
@@ -976,6 +1063,12 @@ function exportTrialData() {
   anchor.download = `311-field-intelligence-${new Date().toISOString().slice(0, 10)}.json`;
   anchor.click();
   URL.revokeObjectURL(url);
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("data_exported", {
+      issue_count: state.issues.length,
+      intervention_count: state.interventions.length,
+    });
+  }
 }
 
 function defaultIntakeTime() {
@@ -1045,6 +1138,14 @@ function submitIntake(event) {
   document.getElementById("filters").reset();
   closeIntakeDialog();
   renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("request_created", {
+      complaint_type: issue.type,
+      zone: issue.zone,
+      operator: issue.operator,
+      priority: issue.priority,
+    });
+  }
   showNotice(`${issue.id} added to the operational queue.`, "success");
 }
 
@@ -1132,6 +1233,9 @@ function recordSectionView(section) {
   );
   if (typeof window.gtag === "function") {
     window.gtag("event", "section_view", { section_name: section });
+  }
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("section_viewed", { section_name: section });
   }
 }
 
@@ -1341,8 +1445,51 @@ function validOneViewRequestUrl(value) {
   }
 }
 
+function validEvidencePhotoUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function containsContactDetails(value) {
   return /[\w.+-]+@[\w.-]+\.[a-z]{2,}|\b(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/i.test(value);
+}
+
+function validHttpUrl(value) {
+  if (!value) return true;
+  try {
+    return ["http:", "https:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+async function copyToClipboard(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.appendChild(field);
+    field.select();
+    let copied = false;
+    try {
+      copied = typeof document.execCommand === "function" && document.execCommand("copy");
+    } finally {
+      field.remove();
+    }
+    return copied;
+  }
 }
 
 function crossReferenceEvidenceText(operator, confidence) {
@@ -1353,6 +1500,158 @@ function crossReferenceEvidenceText(operator, confidence) {
     "photo-and-text-confirmed": "both the public narrative and request photographs"
   }[confidence] || "the reviewed public request";
   return `Administrator verified ${operator} using ${method}.`;
+}
+
+function renderLinkedPhotos(issue) {
+  const photoUrls = Array.isArray(issue.crossReferencePhotoUrls)
+    ? issue.crossReferencePhotoUrls.filter(validEvidencePhotoUrl)
+    : [];
+  if (!photoUrls.length) return "";
+  return `
+    <section class="linked-photo-panel" aria-label="Linked OneView request photographs">
+      <div class="linked-photo-heading">
+        <div>
+          <p class="eyebrow">Linked OneView evidence</p>
+          <strong>${photoUrls.length} request photograph${photoUrls.length === 1 ? "" : "s"}</strong>
+        </div>
+        ${issue.sourceUrl ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open request</a>` : ""}
+      </div>
+      <div class="linked-photo-strip" tabindex="0">
+        ${photoUrls.map((url, index) => `<a class="linked-photo" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">
+          <img src="${escapeHtml(url)}" alt="OneView request photograph ${index + 1} for ${escapeHtml(issue.id)}" loading="lazy" referrerpolicy="no-referrer">
+          <span>Photograph ${index + 1}</span>
+        </a>`).join("")}
+      </div>
+    </section>`;
+}
+
+function normalizedPlace(value) {
+  return String(value || "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
+function populusContextForIssue(issue, trace) {
+  const observations = populusState.observations || [];
+  if (!observations.length) return null;
+  const issueTime = new Date(issue.reportedAt);
+  const operator = issue.operator !== "unknown" ? issue.operator : trace?.vehicle?.operator;
+  const candidates = observations.filter(item => {
+    const observedAt = new Date(item.observed_at);
+    return normalizedPlace(item.zone) === normalizedPlace(issue.zone)
+      && (!operator || normalizedPlace(item.operator) === normalizedPlace(operator))
+      && Number.isFinite(observedAt.getTime());
+  });
+  const current = candidates
+    .filter(item => Math.abs(new Date(item.observed_at) - issueTime) <= 6 * 3600000)
+    .toSorted((a, b) => Math.abs(new Date(a.observed_at) - issueTime) - Math.abs(new Date(b.observed_at) - issueTime))[0];
+  if (!current) return null;
+  const baseline = candidates.filter(item => {
+    const observedAt = new Date(item.observed_at);
+    const age = issueTime - observedAt;
+    const hourDistance = Math.min(
+      Math.abs(observedAt.getUTCHours() - issueTime.getUTCHours()),
+      24 - Math.abs(observedAt.getUTCHours() - issueTime.getUTCHours())
+    );
+    return age >= 86400000 && age <= 28 * 86400000 && hourDistance <= 2;
+  });
+  const value = (item, field, fallback = 0) => Number(item?.[field] ?? fallback);
+  const rides = item => Number(item?.rides ?? (value(item, "rides_started") + value(item, "rides_ended")));
+  const baselineMedian = getter => baseline.length ? median(baseline.map(getter).filter(Number.isFinite)) : null;
+  const baselineFleet = baselineMedian(item => value(item, "fleet_size"));
+  const baselineRides = baselineMedian(rides);
+  const baselineIdle = baselineMedian(item => value(item, "idle_vehicles"));
+  const currentFleet = value(current, "fleet_size");
+  const currentRides = rides(current);
+  const currentIdle = value(current, "idle_vehicles");
+  const fleetRatio = baselineFleet ? currentFleet / baselineFleet : null;
+  const rideRatio = baselineRides ? currentRides / baselineRides : null;
+  const idleRatio = baselineIdle ? currentIdle / baselineIdle : null;
+  const idleMinutes = value(current, "median_idle_minutes", NaN);
+  const threshold = Number(populusState.idle_review_threshold_minutes || 120);
+  const netDeployments = value(current, "deployments") - value(current, "removals");
+  let pattern = "insufficient_evidence";
+  if (Number.isFinite(idleMinutes) && idleMinutes >= threshold && currentIdle > 0 && (rideRatio === null || rideRatio <= 1.1)) {
+    pattern = "idle_management_gap";
+  } else if (fleetRatio !== null && fleetRatio >= 1.25 && (rideRatio === null || fleetRatio - rideRatio >= 0.25) && netDeployments > 0) {
+    pattern = "supply_driven_concentration";
+  } else if (rideRatio !== null && rideRatio >= 1.2 && fleetRatio !== null && Math.abs(fleetRatio - rideRatio) <= 0.35) {
+    pattern = "demand_driven_concentration";
+  }
+  return {
+    pattern,
+    operator: current.operator || operator || "All operators",
+    observedAt: current.observed_at,
+    currentFleet,
+    currentRides,
+    currentIdle,
+    idleMinutes: Number.isFinite(idleMinutes) ? idleMinutes : null,
+    deployments: value(current, "deployments"),
+    removals: value(current, "removals"),
+    baselineFleet,
+    baselineRides,
+    baselineIdle,
+    fleetRatio,
+    rideRatio,
+    idleRatio,
+    baselineCount: baseline.length
+  };
+}
+
+function renderRootCauseReview(issue) {
+  const trace = (vehicleTraceState.traces || []).find(item => item.request_id === issue.id);
+  const policy = (policyBoundaryState.complaints || []).find(item => item.source_id === issue.id);
+  const event = eventEvidenceForIssue(issue);
+  const repeatCount = [...(historicalState.records || []), ...state.issues]
+    .filter(item => normalizedPlace(item.address) === normalizedPlace(issue.address))
+    .length;
+  const populus = populusContextForIssue(issue, trace);
+  const signals = [];
+  if (trace?.vehicle) {
+    const dwell = Number.isFinite(trace.trajectory?.minimum_dwell_minutes)
+      ? `${trace.trajectory.minimum_dwell_minutes} minutes minimum observed dwell`
+      : "arrival time not bounded";
+    signals.push(`${trace.vehicle.operator} ${trace.vehicle.id} · ${trace.matched_observation.distance_meters} m from request · ${dwell}`);
+  }
+  if (repeatCount > 1) signals.push(`${repeatCount} loaded requests at the same normalized address`);
+  if (event) signals.push(`${event.eventName} · ${label(event.window)} · ${event.venueDistanceMeters} m from venue`);
+  if (policy) signals.push(`${policy.nearest_boundary_distance_m} m from ${policy.nearest_policy_name} ${label(policy.nearest_boundary_type)} boundary`);
+  if (populus) {
+    signals.push(`${populus.operator} · fleet ${populus.currentFleet} · rides ${populus.currentRides} · idle ${populus.currentIdle}${populus.idleMinutes === null ? "" : ` · median idle ${populus.idleMinutes} min`}`);
+  }
+  const conclusion = {
+    demand_driven_concentration: "Demand-driven concentration: Populus rides and fleet increased together relative to the matched baseline.",
+    supply_driven_concentration: "Supply-driven concentration for review: fleet and net deployments rose faster than rides. This does not establish intent.",
+    idle_management_gap: "Idle-management gap for review: idle duration exceeded the configured threshold while demand was not unusually high. A duty or SLA breach is not established here.",
+    recent_vehicle_arrival: "A likely matched vehicle arrived from another observed location before the complaint. The data does not identify who moved or parked it.",
+    long_dwell: "A likely matched vehicle remained near the request long enough to support a dwell-management review.",
+    vehicle_cluster: "Multiple vehicle candidates were present, so the exact device and causal action remain unresolved.",
+    insufficient_evidence: "Insufficient evidence to distinguish rider parking, operator staging, displacement, or another cause."
+  }[populus?.pattern !== "insufficient_evidence" ? populus.pattern : (trace?.root_cause_signal || "insufficient_evidence")];
+  const confidence = populus && trace?.confidence === "high"
+    ? "high"
+    : populus || ["high", "medium"].includes(trace?.confidence)
+      ? "medium"
+      : "insufficient";
+  return `
+    <section class="root-cause-review" aria-label="Root cause review">
+      <div class="root-cause-heading">
+        <div>
+          <p class="eyebrow">Root-cause review</p>
+          <h4>${escapeHtml(label(populus?.pattern !== "insufficient_evidence" ? populus.pattern : (trace?.root_cause_signal || "insufficient_evidence")))}</h4>
+        </div>
+        <span class="badge badge-${confidence === "high" ? "completed" : confidence === "medium" ? "high" : "standard"}">${escapeHtml(confidence)} confidence</span>
+      </div>
+      <p class="root-cause-conclusion">${escapeHtml(conclusion)}</p>
+      ${signals.length ? `<ul>${signals.map(signal => `<li>${escapeHtml(signal)}</li>`).join("")}</ul>` : `<p>No linked vehicle trajectory or Populus zone observation is available yet.</p>`}
+      ${trace?.vehicle ? `<dl class="vehicle-trace">
+        <div><dt>Likely vehicle</dt><dd>${escapeHtml(trace.vehicle.operator)} · ${escapeHtml(trace.vehicle.id)} · ${escapeHtml(trace.vehicle.type)}</dd></div>
+        <div><dt>Matched observation</dt><dd>${new Date(trace.matched_observation.observed_at).toLocaleString()} · ${trace.matched_observation.distance_meters} m away</dd></div>
+        <div><dt>First observed near</dt><dd>${new Date(trace.trajectory.first_observed_near_at).toLocaleString()}</dd></div>
+        <div><dt>Arrived from</dt><dd>${trace.trajectory.came_from ? `${trace.trajectory.came_from.lat.toFixed(5)}, ${trace.trajectory.came_from.lng.toFixed(5)} · observed ${new Date(trace.trajectory.came_from.observed_at).toLocaleString()}` : "No defensible prior location in the loaded snapshot sequence"}</dd></div>
+        <div><dt>Observed dwell</dt><dd>${Number.isFinite(trace.trajectory.minimum_dwell_minutes) ? `At least ${trace.trajectory.minimum_dwell_minutes} minutes before the report` : "Not bounded by the loaded snapshots"}</dd></div>
+        <div><dt>Other candidates</dt><dd>${trace.candidate_count > 1 ? `${trace.candidate_count - 1} additional vehicle candidate${trace.candidate_count - 1 === 1 ? "" : "s"}` : "None within the matching window"}</dd></div>
+      </dl>` : ""}
+      <p class="evidence-boundary">GBFS and Populus support operational pattern review. They do not, by themselves, prove who placed a vehicle, operator intent, negligence, or a contractual violation.</p>
+    </section>`;
 }
 
 function requestHistory(issue) {
@@ -1422,17 +1721,22 @@ function renderDetail() {
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
       ${issue.councilDistrict ? `<div><dt>Council district</dt><dd>${escapeHtml(issue.councilDistrict)}</dd></div>` : ""}
     </dl>
+    ${renderLinkedPhotos(issue)}
     <div class="operator-evidence">
       <strong>OneView lookup</strong>
       <p>Search the public system near <b>${escapeHtml(issue.address)}</b>, match request ID <b>${escapeHtml(issue.id)}</b>, then record only operational evidence—never resident names or contact details.</p>
       ${issue.sourceUrl
         ? `<a href="${escapeHtml(issue.sourceUrl)}" target="_blank" rel="noreferrer">Open matched OneView request and photographs</a>`
-        : `<a href="${lookupUrl}" target="_blank" rel="noreferrer">Search nearby requests in OneView</a>`}
+        : `<a href="${lookupUrl}" target="_blank" rel="noreferrer" data-oneview-lookup>Search nearby requests in OneView</a>`}
     </div>
+    ${renderRootCauseReview(issue)}
     <form class="detail-form evidence-review-form" id="evidenceReviewForm">
       <p class="eyebrow">Administrator evidence review</p>
       <label>Matched OneView request URL
         <input id="crossReferenceUrlInput" type="url" value="${escapeHtml(issue.crossReferenceUrl || "")}" placeholder="https://columbusoh.oneviewcrm.cc/servicerequests/…" ${canEditEvidence ? "" : "disabled"}>
+      </label>
+      <label>Public request photograph URLs
+        <textarea id="crossReferencePhotoUrlsInput" maxlength="3000" placeholder="One HTTPS image URL per line" ${canEditEvidence ? "" : "disabled"}>${escapeHtml((issue.crossReferencePhotoUrls || []).join("\n"))}</textarea>
       </label>
       <label>Privacy-safe operational summary
         <textarea id="crossReferenceSummaryInput" maxlength="600" placeholder="Describe the obstruction and location. Omit resident names, email addresses, phone numbers, and correspondence details." ${canEditEvidence ? "" : "disabled"}>${escapeHtml(issue.crossReferenceSummary || "")}</textarea>
@@ -1493,11 +1797,25 @@ function renderDetail() {
       </label>
       <button class="primary-button" type="submit">Save update</button>
     </form>`;
+  document.querySelector("[data-oneview-lookup]")?.addEventListener("click", () => {
+    void copyToClipboard(issue.address).then(copied => {
+      showNotice(
+        copied
+          ? `${issue.address} copied. Paste it into OneView's address search.`
+          : `OneView opened. Copy ${issue.address} into the address search.`,
+        copied ? "success" : "error"
+      );
+    });
+  });
   document.getElementById("evidenceReviewForm").addEventListener("submit", event => {
     event.preventDefault();
     if (!requireRole("admin", "record verified source evidence")) return;
     const error = document.getElementById("evidenceReviewError");
     const url = document.getElementById("crossReferenceUrlInput").value.trim();
+    const photoUrls = document.getElementById("crossReferencePhotoUrlsInput").value
+      .split(/\r?\n/)
+      .map(value => value.trim())
+      .filter(Boolean);
     const summary = document.getElementById("crossReferenceSummaryInput").value.trim();
     const officialStatus = document.getElementById("crossReferenceStatusInput").value;
     const operator = document.getElementById("crossReferenceOperatorInput").value;
@@ -1505,6 +1823,10 @@ function renderDetail() {
     const accessibilityEvidence = document.getElementById("accessibilityEvidenceInput").value;
     if (!validOneViewRequestUrl(url)) {
       error.textContent = "Enter the exact public OneView request URL, not the nearby-search page.";
+      return;
+    }
+    if (photoUrls.length > 6 || photoUrls.some(value => !validEvidencePhotoUrl(value))) {
+      error.textContent = "Add no more than six public HTTPS photograph URLs, one per line.";
       return;
     }
     if (summary.length < 12) {
@@ -1524,6 +1846,7 @@ function renderDetail() {
     issue.crossReferenceSummary = summary;
     issue.crossReferenceUrl = url;
     issue.sourceUrl = url;
+    issue.crossReferencePhotoUrls = photoUrls;
     issue.crossReferenceStatus = officialStatus;
     issue.crossReferenceEvidence = "Administrator-verified public OneView detail; the saved summary excludes personal contact information.";
     issue.accessibilityEvidence = accessibilityEvidence;
@@ -1537,7 +1860,25 @@ function renderDetail() {
     recordAudit("cross_reference_verified", issue.id, `OneView evidence recorded; ${issue.type}; ${operator}`);
     saveState();
     renderAll();
+    if (typeof window.posthog !== "undefined") {
+      window.posthog.capture("evidence_verified", {
+        complaint_type: issue.type,
+        operator: issue.operator,
+        operator_confidence: issue.operatorConfidence,
+        accessibility_evidence: issue.accessibilityEvidence,
+        photo_count: photoUrls.length,
+      });
+    }
     showNotice(`${issue.id} OneView evidence saved without changing its local lifecycle status.`, "success");
+  });
+  panel.querySelectorAll(".linked-photo img").forEach(image => {
+    image.addEventListener("error", () => {
+      const link = image.closest(".linked-photo");
+      if (!link) return;
+      image.remove();
+      link.classList.add("photo-load-failed");
+      link.querySelector("span").textContent = "Open photograph";
+    }, { once: true });
   });
   document.getElementById("accessibilityChallengeForm")?.addEventListener("submit", event => {
     event.preventDefault();
@@ -1562,6 +1903,12 @@ function renderDetail() {
     recordAudit("accessibility_review_updated", issue.id, `${label(challengeStatus)}; evidence note ${challengeNote ? "recorded" : "cleared"}; no waiver or lifecycle change implied`);
     saveState();
     renderAll();
+    if (typeof window.posthog !== "undefined") {
+      window.posthog.capture("accessibility_review_updated", {
+        challenge_status: challengeStatus,
+        has_evidence_note: Boolean(challengeNote),
+      });
+    }
     showNotice(`${issue.id} review status saved. No waiver, dismissal, SLA pause, or lifecycle change is implied.`, "success");
   });
   document.getElementById("issueUpdateForm").addEventListener("submit", event => {
@@ -1577,7 +1924,18 @@ function renderDetail() {
       previous.status !== issue.status ? `status: ${previous.status} → ${issue.status}` : "",
       previous.notes !== issue.notes ? "operational note updated" : ""
     ].filter(Boolean).join("; ");
-    if (changes) recordAudit("request_updated", issue.id, changes);
+    if (changes) {
+      recordAudit("request_updated", issue.id, changes);
+      if (typeof window.posthog !== "undefined") {
+        window.posthog.capture("request_updated", {
+          complaint_type: issue.type,
+          zone: issue.zone,
+          new_status: issue.status,
+          previous_status: previous.status,
+          team_assigned: Boolean(issue.team),
+        });
+      }
+    }
     saveState();
     renderAll();
   });
@@ -1658,14 +2016,41 @@ function generateHotspotRecommendation(zone) {
   }
   const createdAt = new Date().toISOString();
   const eventEvidence = hotspot.issues.map(eventEvidenceForIssue).filter(Boolean);
+  const attributedVendors = [...new Set(
+    hotspot.issues.map(issue => issue.operator).filter(operator => ["Spin", "Veo"].includes(operator))
+  )];
+  const mappedIssues = hotspot.issues.filter(issue => Number.isFinite(issue.lat) && Number.isFinite(issue.lng));
+  const mapCenter = mappedIssues.length ? {
+    lat: mappedIssues.reduce((sum, issue) => sum + issue.lat, 0) / mappedIssues.length,
+    lng: mappedIssues.reduce((sum, issue) => sum + issue.lng, 0) / mappedIssues.length
+  } : { lat: 39.9612, lng: -82.9988 };
+  const mapRadius = mappedIssues.length
+    ? Math.min(1609, Math.max(150, ...mappedIssues.map(issue => distanceMeters(issue, mapCenter) + 75)))
+    : 250;
   const item = {
     id: nextInterventionId(),
+    interventionType: "field_response",
+    cadence: "one_off",
+    recurrence: "",
+    timeframeStart: createdAt.slice(0, 10),
+    timeframeEnd: createdAt.slice(0, 10),
+    mapArea: {
+      label: zone,
+      type: "circle",
+      lat: mapCenter.lat,
+      lng: mapCenter.lng,
+      radiusMeters: Math.round(mapRadius)
+    },
     zone,
     strategy: hotspot.critical
       ? "Accessibility obstruction field response"
       : "Targeted field verification and redistribution",
     rationale: `${hotspot.independentSignals.length} independent prioritization signals produce a score of ${hotspot.score}; ${hotspot.critical} are critical. Same-address reports within ten minutes are retained as records but collapsed for scoring.${eventEvidence.length ? ` ${eventEvidence.length} source record${eventEvidence.length === 1 ? "" : "s"} also fall within the documented venue/time review window; this is contextual evidence, not proof of causation.` : ""}`,
     status: "recommended",
+    requirementStatus: "above_current_311_requirements",
+    authorityBasis: "voluntary_pilot",
+    intendedEffect: "fewer_future_311_requests",
+    slaStatus: "not_applicable",
     team: responseTeamForZone(zone),
     createdAt,
     score: hotspot.score,
@@ -1673,13 +2058,24 @@ function generateHotspotRecommendation(zone) {
     sourceIssueIds: hotspot.issues.map(issue => issue.id),
     independentIssueIds: hotspot.independentSignals.map(issue => issue.id),
     eventEvidence,
+    targetVendors: attributedVendors.length ? attributedVendors : ["Spin", "Veo"],
+    vendorResponses: {},
     transitions: [{ status: "recommended", at: createdAt, actor: `local-${currentRole}` }]
   };
   state.interventions.push(item);
   recordAudit("intervention_recommended", item.id, `${zone} · score ${hotspot.score} · ${hotspot.issues.length} source records`);
   saveState();
   renderAll();
-  showNotice(`${item.id} created for review. Approval is still required before dispatch.`, "success");
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("intervention_recommended", {
+      zone,
+      hotspot_score: hotspot.score,
+      hotspot_tier: hotspot.tier,
+      source_issue_count: hotspot.issues.length,
+      has_event_evidence: eventEvidence.length > 0,
+    });
+  }
+  showNotice(`${item.id} proactive forecast created for review. It is not a 311 request.`, "success");
 }
 
 function renderHotspots() {
@@ -1771,20 +2167,262 @@ function renderHotspots() {
   });
 }
 
+function interventionVendors(item) {
+  const configured = Array.isArray(item.targetVendors)
+    ? item.targetVendors.filter(vendor => ["Spin", "Veo"].includes(vendor))
+    : [];
+  if (configured.length) return [...new Set(configured)];
+  const attributed = (item.sourceIssueIds || [])
+    .map(issueId => state.issues.find(issue => issue.id === issueId)?.operator)
+    .filter(vendor => ["Spin", "Veo"].includes(vendor));
+  return attributed.length ? [...new Set(attributed)] : ["Spin", "Veo"];
+}
+
+function vendorResponseComplete(item) {
+  return interventionVendors(item).every(vendor =>
+    ["accepted", "acknowledged"].includes(item.vendorResponses?.[vendor]?.status)
+  );
+}
+
+function vendorRoutingComplete(item) {
+  return interventionVendors(item).every(vendor => {
+    const response = item.vendorResponses?.[vendor];
+    return Boolean(
+      ["accepted", "acknowledged"].includes(response?.status) &&
+      response?.assignedTo?.trim() &&
+      response?.vendorPriority &&
+      response?.routingMethod
+    );
+  });
+}
+
+function renderVendorResponses(item) {
+  if (!["dispatched", "completed"].includes(item.status)) return "";
+  const vendors = interventionVendors(item);
+  return `
+    <section class="vendor-response-panel" aria-label="Vendor responses for ${escapeHtml(item.id)}">
+      <div class="forecast-boundary">
+        <p class="eyebrow">Proactive vendor dispatch · not a 311 request</p>
+        <p>This optional early-warning record anticipates a place and timeframe that may otherwise produce a future 311 request. It is above current vendor 311 requirements, has no SLA, and does not represent a citizen report, predict a person or intent, create an enforcement finding, or make non-participation a compliance failure.</p>
+      </div>
+      <div>
+        <p class="eyebrow">Vendor operational record</p>
+        <p>Each vendor records receipt, the on-duty assignment, priority, internal route, and any evidence. Slack is one routing option; vendors may use their own system.</p>
+      </div>
+      <div class="vendor-response-list">
+        ${vendors.map(vendor => {
+          const response = item.vendorResponses?.[vendor];
+          const status = response?.status || "pending";
+          const editable = item.status === "dispatched" && roleAllows("operator");
+          return `
+            <div class="vendor-response-row">
+              <div class="vendor-response-summary">
+                <strong>${escapeHtml(vendor)}</strong>
+                <span class="badge badge-${status === "pending" ? "standard" : status === "accepted" ? "approved" : "in_progress"}">${escapeHtml(label(status))}</span>
+                ${response?.at ? `<small>Receipt ${new Date(response.at).toLocaleString()} · ${escapeHtml(response.actor || "recorded response")}</small>` : ""}
+                ${response?.routingUpdatedAt ? `<small>Routing updated ${new Date(response.routingUpdatedAt).toLocaleString()} · ${escapeHtml(response.routingActor || "recorded update")}</small>` : ""}
+              </div>
+              ${item.status === "dispatched" && status === "pending" ? `
+                <div class="vendor-response-actions">
+                  <button class="secondary-button" type="button" data-vendor-response="accepted" data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}" ${!roleAllows("operator") ? "disabled" : ""}>Accept</button>
+                  <button class="secondary-button" type="button" data-vendor-response="acknowledged" data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}" ${!roleAllows("operator") ? "disabled" : ""}>Acknowledge</button>
+                </div>` : ""}
+              ${status !== "pending" ? `
+                <form class="vendor-routing-form" data-vendor-routing data-vendor="${escapeHtml(vendor)}" data-id="${escapeHtml(item.id)}">
+                  <label>Assigned on-duty responder or team <span>Required</span>
+                    <input name="assignedTo" value="${escapeHtml(response?.assignedTo || "")}" placeholder="Columbus on-duty operations" ${editable ? "" : "disabled"} required>
+                  </label>
+                  <label>Vendor priority <span>Required</span>
+                    <select name="vendorPriority" ${editable ? "" : "disabled"} required>
+                      <option value="">Select priority</option>
+                      ${["immediate", "high", "routine", "monitor"].map(priority => `<option value="${priority}" ${response?.vendorPriority === priority ? "selected" : ""}>${label(priority)}</option>`).join("")}
+                    </select>
+                  </label>
+                  <label>Routed via <span>Required</span>
+                    <select name="routingMethod" ${editable ? "" : "disabled"} required>
+                      <option value="">Select route</option>
+                      ${["slack", "vendor_app", "email", "phone", "other"].map(method => `<option value="${method}" ${response?.routingMethod === method ? "selected" : ""}>${label(method)}</option>`).join("")}
+                    </select>
+                  </label>
+                  <label>Routing reference
+                    <input name="routingReference" value="${escapeHtml(response?.routingReference || "")}" placeholder="#columbus-ops, message URL, or vendor case ID" ${editable ? "" : "disabled"}>
+                  </label>
+                  <label class="vendor-routing-wide">Evidence note
+                    <textarea name="evidenceNote" placeholder="Vehicle movement, field observation, disposition, or follow-up evidence" ${editable ? "" : "disabled"}>${escapeHtml(response?.evidenceNote || "")}</textarea>
+                  </label>
+                  <label class="vendor-routing-wide">Evidence URL
+                    <input name="evidenceUrl" type="url" value="${escapeHtml(response?.evidenceUrl || "")}" placeholder="https://…" ${editable ? "" : "disabled"}>
+                  </label>
+                  <p class="form-error vendor-routing-wide" data-vendor-routing-error></p>
+                  ${editable ? `<button class="secondary-button vendor-routing-wide" type="submit">Save vendor routing</button>` : ""}
+                </form>` : ""}
+            </div>`;
+        }).join("")}
+      </div>
+    </section>`;
+}
+
+function toggleInterventionExperimentFields() {
+  const type = document.getElementById("interventionTypeInput").value;
+  const cadence = document.getElementById("interventionCadenceInput").value;
+  const experimentFields = document.getElementById("interventionExperimentFields");
+  const recurrenceFields = document.getElementById("interventionRecurrenceFields");
+  const experiment = type === "experiment";
+  const repeating = cadence === "repeating";
+  experimentFields.hidden = !experiment;
+  experimentFields.querySelectorAll("input, textarea").forEach(control => {
+    control.required = experiment;
+  });
+  recurrenceFields.hidden = !repeating;
+  recurrenceFields.querySelectorAll("input, textarea").forEach(control => {
+    control.required = repeating;
+  });
+}
+
+function openInterventionDialog() {
+  if (!requireRole("operator", "create an intervention")) return;
+  document.getElementById("interventionForm").reset();
+  document.getElementById("interventionError").textContent = "";
+  document.getElementById("interventionSpinInput").checked = true;
+  document.getElementById("interventionVeoInput").checked = true;
+  toggleInterventionExperimentFields();
+  document.getElementById("interventionDialog").showModal();
+  document.getElementById("interventionStrategyInput").focus();
+}
+
+function closeInterventionDialog() {
+  document.getElementById("interventionDialog").close();
+}
+
+function submitIntervention(event) {
+  event.preventDefault();
+  if (!requireRole("operator", "create an intervention")) return;
+  const error = document.getElementById("interventionError");
+  const interventionType = document.getElementById("interventionTypeInput").value;
+  const cadence = document.getElementById("interventionCadenceInput").value;
+  const recurrence = document.getElementById("interventionRecurrenceInput").value.trim();
+  const strategy = document.getElementById("interventionStrategyInput").value.trim();
+  const zone = document.getElementById("interventionZoneInput").value.trim();
+  const rationale = document.getElementById("interventionRationaleInput").value.trim();
+  const targetVendors = [
+    document.getElementById("interventionSpinInput").checked ? "Spin" : "",
+    document.getElementById("interventionVeoInput").checked ? "Veo" : ""
+  ].filter(Boolean);
+  if (strategy.length < 5 || zone.length < 2 || rationale.length < 12) {
+    error.textContent = "Add a strategy, service area, and concise rationale.";
+    return;
+  }
+  if (!targetVendors.length) {
+    error.textContent = "Select at least one vendor that must respond.";
+    return;
+  }
+  const hypothesis = document.getElementById("interventionHypothesisInput").value.trim();
+  const successMeasure = document.getElementById("interventionSuccessMeasureInput").value.trim();
+  const timeframeStart = document.getElementById("interventionStartInput").value;
+  const timeframeEnd = document.getElementById("interventionEndInput").value;
+  const latitude = Number(document.getElementById("interventionLatitudeInput").value);
+  const longitude = Number(document.getElementById("interventionLongitudeInput").value);
+  const radiusMeters = Number(document.getElementById("interventionRadiusInput").value);
+  if (!timeframeStart || !timeframeEnd || new Date(`${timeframeEnd}T12:00:00`) < new Date(`${timeframeStart}T12:00:00`)) {
+    error.textContent = "Add a valid start and end or review date.";
+    return;
+  }
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !Number.isFinite(radiusMeters) || radiusMeters < 25 || radiusMeters > 5000) {
+    error.textContent = "Define the map area with valid coordinates and a 25–5,000 metre radius.";
+    return;
+  }
+  if (cadence === "repeating" && recurrence.length < 5) {
+    error.textContent = "Describe when the repeating intervention occurs.";
+    return;
+  }
+  if (interventionType === "experiment" && (hypothesis.length < 12 || successMeasure.length < 8)) {
+    error.textContent = "Experiments require a hypothesis and success measure.";
+    return;
+  }
+  const createdAt = new Date().toISOString();
+  const item = {
+    id: nextInterventionId(),
+    interventionType,
+    cadence,
+    recurrence: cadence === "repeating" ? recurrence : "",
+    timeframeStart,
+    timeframeEnd,
+    mapArea: {
+      label: zone,
+      type: "circle",
+      lat: latitude,
+      lng: longitude,
+      radiusMeters
+    },
+    zone,
+    strategy,
+    rationale,
+    status: "recommended",
+    requirementStatus: "above_current_311_requirements",
+    authorityBasis: "voluntary_pilot",
+    intendedEffect: "fewer_future_311_requests",
+    slaStatus: "not_applicable",
+    team: responseTeamForZone(zone),
+    createdAt,
+    targetVendors,
+    vendorResponses: {},
+    sourceIssueIds: [],
+    independentIssueIds: [],
+    eventEvidence: [],
+    hypothesis: interventionType === "experiment" ? hypothesis : "",
+    successMeasure: interventionType === "experiment" ? successMeasure : "",
+    plannedStart: interventionType === "experiment" ? timeframeStart : "",
+    plannedEnd: interventionType === "experiment" ? timeframeEnd : "",
+    transitions: [{ status: "recommended", at: createdAt, actor: `local-${currentRole}` }]
+  };
+  state.interventions.push(item);
+  recordAudit("intervention_created", item.id, `${label(interventionType)} · ${label(cadence)} · ${zone} · ${targetVendors.join(", ")}`);
+  saveState();
+  closeInterventionDialog();
+  renderAll();
+  if (typeof window.posthog !== "undefined") {
+    window.posthog.capture("intervention_created", {
+      intervention_type: interventionType,
+      cadence,
+      zone,
+      vendor_count: targetVendors.length,
+    });
+  }
+  showNotice(`${item.id} proactive forecast created for review. It is not a 311 request.`, "success");
+}
+
 function renderInterventions() {
   const list = document.getElementById("interventionList");
   list.innerHTML = state.interventions.length ? state.interventions.map(item => `
     <article class="record-card">
       <div>
         <span class="badge badge-${item.status}">${label(item.status)}</span>
+        <p class="eyebrow">${escapeHtml(label(item.interventionType || "field_response"))}</p>
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${escapeHtml(item.rationale)}</p>
+        <div class="intervention-scope">
+          <p><strong>Cadence:</strong> ${escapeHtml(label(item.cadence || "one_off"))}${item.recurrence ? ` · ${escapeHtml(item.recurrence)}` : ""}</p>
+          <p><strong>Requirement status:</strong> Voluntary pilot request · above current 311 response requirements</p>
+          <p><strong>SLA status:</strong> Not applicable · requested priority is not a contractual clock</p>
+          <p><strong>Intended effect:</strong> Fewer future 311 requests in the defined area and timeframe</p>
+          <p><strong>Timeframe:</strong> ${escapeHtml(item.timeframeStart || item.plannedStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || item.plannedEnd || "Not recorded")}</p>
+          <p><strong>Map area:</strong> ${escapeHtml(item.mapArea?.label || item.zone)}${item.mapArea ? ` · ${Number(item.mapArea.lat).toFixed(5)}, ${Number(item.mapArea.lng).toFixed(5)} · ${Number(item.mapArea.radiusMeters).toLocaleString()} m radius` : " · coordinates not recorded"}</p>
+          ${item.mapArea ? `<button class="quiet-button" type="button" data-view-intervention-area="${escapeHtml(item.id)}">View map area</button>` : ""}
+        </div>
         ${item.sourceIssueIds?.length ? `<p class="intervention-evidence"><strong>Source records:</strong> ${item.sourceIssueIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : ""}
         ${item.eventEvidence?.length ? `<p class="intervention-evidence"><strong>Event-window context:</strong> ${item.eventEvidence.map(evidence => `${escapeHtml(evidence.issueId)} · ${escapeHtml(evidence.eventName)} · ${escapeHtml(label(evidence.window))} · ${evidence.venueDistanceMeters} m from venue`).join("; ")}</p>` : ""}
+        ${item.interventionType === "experiment" ? `
+          <div class="experiment-plan">
+            <p><strong>Hypothesis:</strong> ${escapeHtml(item.hypothesis)}</p>
+            <p><strong>Success measure:</strong> ${escapeHtml(item.successMeasure)}</p>
+            <p><strong>Planned window:</strong> ${escapeHtml(item.timeframeStart || item.plannedStart)}–${escapeHtml(item.timeframeEnd || item.plannedEnd)}</p>
+          </div>` : ""}
         ${item.completionNotes ? `<p class="completion-note"><strong>Completion note:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
+        ${renderVendorResponses(item)}
         <div class="record-meta">
           <span>${escapeHtml(item.id)}</span>
           <span>Team: ${escapeHtml(item.team || "Unassigned")}</span>
+          <span>Vendors: ${interventionVendors(item).map(vendor => escapeHtml(vendor)).join(", ")}</span>
           <span>Created ${new Date(item.createdAt).toLocaleString()}</span>
           ${item.approvedAt ? `<span>Approved ${new Date(item.approvedAt).toLocaleString()}</span>` : ""}
           ${item.dispatchedAt ? `<span>Dispatched ${new Date(item.dispatchedAt).toLocaleString()}</span>` : ""}
@@ -1802,6 +2440,79 @@ function renderInterventions() {
         </label>` : ""}
       </div>
     </article>`).join("") : `<div class="empty-card">No interventions have been generated.</div>`;
+  list.querySelectorAll("button[data-view-intervention-area]").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = state.interventions.find(intervention => intervention.id === button.dataset.viewInterventionArea);
+      if (!item?.mapArea) return;
+      document.querySelector('.nav-item[data-view="map"]')?.click();
+      document.getElementById("mapInterventionsToggle").checked = true;
+      renderOperationalMap();
+      operationalMap?.setView([item.mapArea.lat, item.mapArea.lng], item.mapArea.radiusMeters <= 250 ? 16 : item.mapArea.radiusMeters <= 750 ? 14 : 13);
+    });
+  });
+  list.querySelectorAll("button[data-vendor-response]").forEach(button => {
+    button.addEventListener("click", () => {
+      const item = state.interventions.find(intervention => intervention.id === button.dataset.id);
+      if (!item || item.status !== "dispatched") return;
+      if (!requireRole("operator", "record a vendor response")) return;
+      const vendor = button.dataset.vendor;
+      const response = button.dataset.vendorResponse;
+      const targetVendors = interventionVendors(item);
+      if (!targetVendors.includes(vendor) || !["accepted", "acknowledged"].includes(response)) return;
+      const now = new Date().toISOString();
+      item.targetVendors = targetVendors;
+      item.vendorResponses ||= {};
+      item.vendorResponses[vendor] = {
+        status: response,
+        at: now,
+        actor: `local-${currentRole}`
+      };
+      recordAudit("vendor_proactive_dispatch_response", item.id, `${vendor} · ${response}`);
+      saveState();
+      renderAll();
+      showNotice(`${vendor} ${response} ${item.id}.`, "success");
+    });
+  });
+  list.querySelectorAll("form[data-vendor-routing]").forEach(form => {
+    form.addEventListener("submit", event => {
+      event.preventDefault();
+      const item = state.interventions.find(intervention => intervention.id === form.dataset.id);
+      if (!item || item.status !== "dispatched") return;
+      if (!requireRole("operator", "record vendor routing")) return;
+      const vendor = form.dataset.vendor;
+      const response = item.vendorResponses?.[vendor];
+      if (!["accepted", "acknowledged"].includes(response?.status)) return;
+      const assignedTo = form.elements.assignedTo.value.trim();
+      const vendorPriority = form.elements.vendorPriority.value;
+      const routingMethod = form.elements.routingMethod.value;
+      const routingReference = form.elements.routingReference.value.trim();
+      const evidenceNote = form.elements.evidenceNote.value.trim();
+      const evidenceUrl = form.elements.evidenceUrl.value.trim();
+      const error = form.querySelector("[data-vendor-routing-error]");
+      if (!assignedTo || !vendorPriority || !routingMethod) {
+        error.textContent = "Record the on-duty assignment, vendor priority, and routing method.";
+        return;
+      }
+      if (!validHttpUrl(evidenceUrl)) {
+        error.textContent = "Enter a valid http or https evidence URL.";
+        return;
+      }
+      Object.assign(response, {
+        assignedTo,
+        vendorPriority,
+        routingMethod,
+        routingReference,
+        evidenceNote,
+        evidenceUrl,
+        routingUpdatedAt: new Date().toISOString(),
+        routingActor: `local-${currentRole}`
+      });
+      recordAudit("vendor_proactive_dispatch_routing_updated", item.id, `${vendor} · ${vendorPriority} · ${routingMethod} · assigned ${assignedTo}`);
+      saveState();
+      renderAll();
+      showNotice(`${vendor} routing recorded for ${item.id}.`, "success");
+    });
+  });
   list.querySelectorAll("button[data-action]").forEach(button => {
     button.addEventListener("click", () => {
       const item = state.interventions.find(intervention => intervention.id === button.dataset.id);
@@ -1815,13 +2526,32 @@ function renderInterventions() {
           showNotice("A completion note is required before closing dispatched work.", "error");
           return;
         }
+        const pendingVendors = interventionVendors(item).filter(vendor =>
+          !["accepted", "acknowledged"].includes(item.vendorResponses?.[vendor]?.status)
+        );
+        if (pendingVendors.length) {
+          showNotice(`Vendor response required from ${pendingVendors.join(" and ")} before completion.`, "error");
+          return;
+        }
+        const incompleteRouting = interventionVendors(item).filter(vendor => {
+          const response = item.vendorResponses?.[vendor];
+          return !response?.assignedTo?.trim() || !response?.vendorPriority || !response?.routingMethod;
+        });
+        if (incompleteRouting.length) {
+          showNotice(`Vendor routing record required from ${incompleteRouting.join(" and ")} before completion.`, "error");
+          return;
+        }
         item.completionNotes = completionNotes;
       }
       item.status = ({ approve: "approved", dispatch: "dispatched", complete: "completed", skip: "skipped" })[button.dataset.action];
       item.transitions ||= [];
       item.transitions.push({ status: item.status, at: now.toISOString(), actor: `local-${currentRole}` });
       if (item.status === "approved") item.approvedAt = now.toISOString();
-      if (item.status === "dispatched") item.dispatchedAt = now.toISOString();
+      if (item.status === "dispatched") {
+        item.dispatchedAt = now.toISOString();
+        item.targetVendors = interventionVendors(item);
+        item.vendorResponses ||= {};
+      }
       if (item.status === "skipped") item.skippedAt = now.toISOString();
       if (item.status === "completed") item.completedAt = now.toISOString();
       recordAudit("intervention_transition", item.id, `${previousStatus} → ${item.status}`);
@@ -1849,12 +2579,31 @@ function renderInterventions() {
           postWindow: `${postStart.toLocaleDateString()}–${postEnd.toLocaleDateString()} (pending)`,
           baselineSourceIds: baselineIssues.map(issue => issue.id),
           completionNotes: item.completionNotes,
+          interventionType: item.interventionType || "field_response",
+          cadence: item.cadence || "one_off",
+          recurrence: item.recurrence || "",
+          timeframeStart: item.timeframeStart || "",
+          timeframeEnd: item.timeframeEnd || "",
+          mapArea: item.mapArea || null,
+          hypothesis: item.hypothesis || "",
+          successMeasure: item.successMeasure || "",
+          plannedStart: item.plannedStart || "",
+          plannedEnd: item.plannedEnd || "",
           label: "inconclusive",
           createdAt: now.toISOString()
         });
       }
       saveState();
       renderAll();
+      if (typeof window.posthog !== "undefined") {
+        window.posthog.capture("intervention_transitioned", {
+          action: button.dataset.action,
+          new_status: item.status,
+          previous_status: previousStatus,
+          zone: item.zone,
+          intervention_type: item.interventionType || "field_response",
+        });
+      }
     });
   });
 }
@@ -1936,6 +2685,8 @@ function renderOutcomes() {
         <h3>${escapeHtml(item.strategy)} · ${escapeHtml(item.zone)}</h3>
         <p>${reduction === null ? "The post-intervention observation window is not complete." : `${item.baseline} baseline requests compared with ${item.post} afterward—a ${reduction}% reduction.`}</p>
         ${item.completionNotes ? `<p><strong>Completion evidence:</strong> ${escapeHtml(item.completionNotes)}</p>` : ""}
+        ${item.interventionType === "experiment" ? `<p><strong>Experiment:</strong> ${escapeHtml(item.hypothesis)}<br><strong>Success measure:</strong> ${escapeHtml(item.successMeasure)}</p>` : ""}
+        <p><strong>Scope:</strong> ${escapeHtml(label(item.cadence || "one_off"))} · ${escapeHtml(item.timeframeStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || "Not recorded")} · ${escapeHtml(item.mapArea?.label || item.zone)}</p>
         ${item.baselineSourceIds?.length ? `<p><strong>Baseline records:</strong> ${item.baselineSourceIds.map(issueId => escapeHtml(issueId)).join(", ")}</p>` : `<p><strong>Baseline records:</strong> none in the defined window.</p>`}
         <div class="record-meta"><span>Baseline: ${escapeHtml(item.baselineWindow)}</span><span>Post-period: ${escapeHtml(item.postWindow)}</span><span>${escapeHtml(item.interventionId)}</span></div>
       </div>
@@ -2113,6 +2864,10 @@ function renderOperationalMap() {
   const showFlags = document.getElementById("mapFlagsToggle").checked;
   const showWatches = document.getElementById("mapWatchesToggle").checked;
   const showPolicies = document.getElementById("mapPoliciesToggle").checked;
+  const showInterventions = document.getElementById("mapInterventionsToggle").checked;
+  const activeInterventions = state.interventions.filter(item =>
+    item.mapArea && !["completed", "skipped"].includes(item.status)
+  );
   const bounds = [];
   if (showPolicies && policyBoundaryState.status === "ready") {
     policyBoundaryState.boundaries.forEach(boundary => {
@@ -2134,6 +2889,30 @@ function renderOperationalMap() {
       ).bindPopup(
         `<strong>${escapeHtml(boundary.policy_name)}</strong><br>${escapeHtml(label(boundary.boundary_type))}<br>${escapeHtml(boundary.description)}<br>Published policy context; not proof of a violation.`
       ).addTo(operationalMapLayers);
+    });
+  }
+  if (showInterventions) {
+    activeInterventions.forEach(item => {
+      const point = [item.mapArea.lat, item.mapArea.lng];
+      bounds.push(point);
+      const color = item.interventionType === "experiment" ? "#7a4b76"
+        : item.cadence === "rule_policy_change" ? "#075d8d"
+          : "#2f6b4f";
+      L.circle(point, {
+        radius: item.mapArea.radiusMeters,
+        color,
+        weight: 2.5,
+        fillColor: color,
+        fillOpacity: 0.12,
+        dashArray: item.interventionType === "experiment" ? "6 5" : null,
+        className: "intervention-area-layer"
+      }).bindPopup(`
+        <strong>${escapeHtml(item.strategy)}</strong><br>
+        ${escapeHtml(label(item.interventionType || "field_response"))} · ${escapeHtml(label(item.cadence || "one_off"))}<br>
+        ${escapeHtml(item.mapArea.label || item.zone)} · ${Number(item.mapArea.radiusMeters).toLocaleString()} m radius<br>
+        ${escapeHtml(item.timeframeStart || "Not recorded")}–${escapeHtml(item.timeframeEnd || "Not recorded")}<br>
+        ${escapeHtml(label(item.status))}
+      `).addTo(operationalMapLayers);
     });
   }
   complaints.forEach(issue => {
@@ -2194,7 +2973,7 @@ function renderOperationalMap() {
     });
   }
   document.getElementById("mapResultCount").textContent =
-    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}${showPolicies && policyBoundaryState.status === "ready" ? ` · ${policyBoundaryState.summary.boundary_feature_count} policy features` : ""}`;
+    `${complaints.length} requests${showVehicles ? ` · ${vehicleState.vehicles.length.toLocaleString()} vehicles` : ""}${showFlags ? ` · ${vehicleState.pileups.length} flags` : ""}${showPolicies && policyBoundaryState.status === "ready" ? ` · ${policyBoundaryState.summary.boundary_feature_count} policy features` : ""}${showInterventions ? ` · ${activeInterventions.length} intervention areas` : ""}`;
   if (!operationalMapHasFit && bounds.length) {
     operationalMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
     operationalMapHasFit = true;
@@ -2503,6 +3282,145 @@ function reconcileAlertDeliveries() {
   return added;
 }
 
+function isoWeekParts(value) {
+  const source = new Date(value);
+  if (!Number.isFinite(source.getTime())) return null;
+  const date = new Date(Date.UTC(source.getUTCFullYear(), source.getUTCMonth(), source.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const isoYear = date.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+  return {
+    year: isoYear,
+    week: Math.ceil((((date - yearStart) / 86400000) + 1) / 7)
+  };
+}
+
+function sameIsoWeekComparison() {
+  const currentRecords = state.issues.map(issue => ({ id: issue.id, reportedAt: issue.reportedAt }));
+  const historicalRecords = (historicalState.records || []).map(record => ({ id: record.id, reportedAt: record.reportedAt }));
+  const records = [...new Map([...historicalRecords, ...currentRecords].map(record => [record.id, record])).values()]
+    .filter(record => isoWeekParts(record.reportedAt));
+  const currentAnchor = currentRecords
+    .map(record => new Date(record.reportedAt))
+    .filter(date => Number.isFinite(date.getTime()))
+    .toSorted((a, b) => b - a)[0];
+  const current = currentAnchor ? isoWeekParts(currentAnchor) : isoWeekParts(new Date());
+  if (!current) return null;
+  const prior = { year: current.year - 1, week: current.week };
+  const count = target => records.filter(record => {
+    const parts = isoWeekParts(record.reportedAt);
+    return parts?.year === target.year && parts.week === target.week;
+  }).length;
+  const currentCount = count(current);
+  const priorCount = count(prior);
+  return {
+    current,
+    prior,
+    currentCount,
+    priorCount,
+    delta: priorCount ? Math.round((currentCount - priorCount) / priorCount * 100) : null
+  };
+}
+
+function forecastAccuracy() {
+  const evaluated = (forecastState.history || []).filter(item =>
+    Number.isFinite(Number(item.predicted_complaints))
+      && Number.isFinite(Number(item.actual_complaints))
+  );
+  if (!evaluated.length) return null;
+  const errors = evaluated.map(item => Math.abs(Number(item.predicted_complaints) - Number(item.actual_complaints)));
+  const actualTotal = evaluated.reduce((sum, item) => sum + Number(item.actual_complaints), 0);
+  const withinTolerance = evaluated.filter(item => {
+    const tolerance = Number.isFinite(Number(item.tolerance))
+      ? Number(item.tolerance)
+      : Math.max(1, Math.ceil(Number(item.actual_complaints) * 0.25));
+    return Math.abs(Number(item.predicted_complaints) - Number(item.actual_complaints)) <= tolerance;
+  }).length;
+  const predictedHotspots = new Set(evaluated.flatMap(item => item.predicted_hotspots || []));
+  const actualHotspots = new Set(evaluated.flatMap(item => item.actual_hotspots || []));
+  const hotspotHits = [...predictedHotspots].filter(zone => actualHotspots.has(zone)).length;
+  return {
+    evaluated: evaluated.length,
+    mae: errors.reduce((sum, error) => sum + error, 0) / evaluated.length,
+    wape: actualTotal ? errors.reduce((sum, error) => sum + error, 0) / actualTotal * 100 : null,
+    withinTolerance: withinTolerance / evaluated.length * 100,
+    precision: predictedHotspots.size ? hotspotHits / predictedHotspots.size * 100 : null,
+    recall: actualHotspots.size ? hotspotHits / actualHotspots.size * 100 : null
+  };
+}
+
+function renderDailyForecast() {
+  const strip = document.getElementById("forecastStrip");
+  const status = document.getElementById("forecastStatus");
+  const measurement = document.getElementById("forecastMeasurement");
+  if (!strip || !status || !measurement) return;
+
+  const publishedAt = forecastState.published_at ? new Date(forecastState.published_at) : null;
+  const horizons = Array.isArray(forecastState.forecast?.horizons)
+    ? [...forecastState.forecast.horizons].toSorted((a, b) => Number(a.hours) - Number(b.hours))
+    : [];
+  status.textContent = horizons.length
+    ? `Published ${publishedAt && Number.isFinite(publishedAt.getTime()) ? publishedAt.toLocaleString() : "without a valid timestamp"}`
+    : forecastState.status === "unavailable"
+      ? "Forecast output is unavailable."
+      : "Waiting for the first published 6:00 AM forecast.";
+
+  const horizonHours = [24, 48, 72];
+  strip.innerHTML = horizonHours.map(hours => {
+    const horizon = horizons.find(item => Number(item.hours) === hours);
+    if (!horizon) {
+      return `<article class="forecast-card forecast-card-pending">
+        <span class="badge badge-standard">${hours} hours</span>
+        <p class="forecast-value">—</p>
+        <h4>Awaiting forecast</h4>
+        <p>No prediction has been published for this horizon.</p>
+      </article>`;
+    }
+    const zones = Array.isArray(horizon.zones) ? horizon.zones : [];
+    const events = Array.isArray(horizon.events) ? horizon.events : [];
+    return `<article class="forecast-card">
+      <div class="forecast-card-topline">
+        <span class="badge badge-standard">${hours} hours</span>
+        <span class="forecast-confidence">${escapeHtml(label(horizon.confidence || "not stated"))} confidence</span>
+      </div>
+      <p class="forecast-value">${Number.isFinite(Number(horizon.predicted_complaints)) ? Number(horizon.predicted_complaints).toLocaleString() : "—"}</p>
+      <h4>Predicted 311 requests</h4>
+      <p>${zones.length
+        ? `<strong>Top zones:</strong> ${zones.slice(0, 3).map(item => `${escapeHtml(item.zone)}${Number.isFinite(Number(item.predicted_complaints)) ? ` (${Number(item.predicted_complaints)})` : ""}`).join(" · ")}`
+        : "No zone forecast was supplied."}</p>
+      ${events.length ? `<p><strong>Event context:</strong> ${events.map(item => escapeHtml(item.name || item)).join(" · ")}</p>` : ""}
+      <p class="forecast-boundary">${escapeHtml(horizon.uncertainty || "Forecast signal only; compare with actual requests after the horizon closes.")}</p>
+    </article>`;
+  }).join("");
+
+  const iso = sameIsoWeekComparison();
+  const accuracy = forecastAccuracy();
+  const eventComparisons = forecastState.event_comparisons || [];
+  const latestEvent = eventComparisons.at(-1);
+  measurement.innerHTML = `
+    <section>
+      <p class="eyebrow">Prediction accuracy</p>
+      ${accuracy ? `
+        <div class="forecast-score-row">
+          <span><strong>${accuracy.mae.toFixed(1)}</strong> MAE</span>
+          <span><strong>${accuracy.wape === null ? "—" : `${accuracy.wape.toFixed(0)}%`}</strong> WAPE</span>
+          <span><strong>${accuracy.withinTolerance.toFixed(0)}%</strong> within tolerance</span>
+          <span><strong>${accuracy.precision === null ? "—" : `${accuracy.precision.toFixed(0)}%`}</strong> hotspot precision</span>
+          <span><strong>${accuracy.recall === null ? "—" : `${accuracy.recall.toFixed(0)}%`}</strong> hotspot recall</span>
+        </div>
+        <p>${accuracy.evaluated} closed forecast horizon${accuracy.evaluated === 1 ? "" : "s"} evaluated against actual requests.</p>`
+        : `<p>Accuracy will appear after the first forecast horizon closes and actual 311 requests are linked.</p>`}
+    </section>
+    <section>
+      <p class="eyebrow">Year-over-year context</p>
+      ${iso ? `<p><strong>ISO week ${String(iso.current.week).padStart(2, "0")}:</strong> ${iso.current.year} has ${iso.currentCount} loaded request${iso.currentCount === 1 ? "" : "s"} vs. ${iso.priorCount} in ${iso.prior.year}${iso.delta === null ? " · prior-year denominator unavailable" : ` · ${iso.delta >= 0 ? "+" : ""}${iso.delta}%`}.</p>` : `<p>Same-ISO-week comparison is unavailable.</p>`}
+      ${latestEvent
+        ? `<p><strong>Event over event:</strong> ${escapeHtml(latestEvent.current_event)} vs. ${escapeHtml(latestEvent.prior_event)} · ${escapeHtml(latestEvent.metric)} ${Number(latestEvent.current_value).toLocaleString()} vs. ${Number(latestEvent.prior_value).toLocaleString()}${Number.isFinite(Number(latestEvent.delta_pct)) ? ` · ${Number(latestEvent.delta_pct) >= 0 ? "+" : ""}${Number(latestEvent.delta_pct).toFixed(0)}%` : ""}.</p>`
+        : `<p>Same-event year-over-year results will appear once matched prior-year event evidence is published.</p>`}
+    </section>`;
+}
+
 function renderDailyBrief() {
   const brief = document.getElementById("dailyBrief");
   if (!brief) return;
@@ -2649,12 +3567,14 @@ function renderAll() {
   renderOutcomes();
   renderVehicles();
   renderHistoricalTrends();
+  renderDailyForecast();
   renderDailyBrief();
   renderAlerts();
   renderActivity();
   renderOperationalMap();
   renderSiteMetrics();
   document.getElementById("openIntake").disabled = !roleAllows("operator");
+  document.getElementById("openIntervention").disabled = !roleAllows("operator");
   document.getElementById("importFile").disabled = !roleAllows("operator");
   document.getElementById("resetDemo").disabled = !roleAllows("admin");
   document.querySelector("#subscriptionForm button[type='submit']").disabled = !roleAllows("operator");
@@ -2761,6 +3681,11 @@ document.getElementById("mapClearAddresses").addEventListener("click", () => {
 });
 renderMapRecentAddresses();
 document.getElementById("openIntake").addEventListener("click", openIntakeDialog);
+document.getElementById("openIntervention").addEventListener("click", openInterventionDialog);
+document.getElementById("closeIntervention").addEventListener("click", closeInterventionDialog);
+document.getElementById("cancelIntervention").addEventListener("click", closeInterventionDialog);
+document.getElementById("interventionForm").addEventListener("submit", submitIntervention);
+document.getElementById("interventionTypeInput").addEventListener("change", toggleInterventionExperimentFields);
 document.getElementById("closeIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("cancelIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("intakeForm").addEventListener("submit", submitIntake);
@@ -2819,6 +3744,9 @@ Promise.all([
   hydrateSlaEvidence(),
   hydrateHistorical311(),
   hydrateEvents(),
+  hydrateDailyForecast(),
+  hydrateRequestVehicleTraces(),
+  hydratePopulusOperations(),
   hydratePolicyBoundaries(),
   hydrateSiteMetrics()
 ]).then(initializeDurableMode).finally(() => {

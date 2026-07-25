@@ -481,6 +481,17 @@ def validate_issue_records(issues):
             raise ValueError(f"request {issue_id} has invalid status")
         if issue.get("priority") not in allowed_priorities:
             raise ValueError(f"request {issue_id} has invalid priority")
+        photo_urls = issue.get("crossReferencePhotoUrls", [])
+        if not isinstance(photo_urls, list) or len(photo_urls) > 6:
+            raise ValueError(
+                f"request {issue_id} crossReferencePhotoUrls must contain at most six URLs"
+            )
+        for photo_url in photo_urls:
+            parsed = urlparse(str(photo_url))
+            if parsed.scheme != "https" or not parsed.netloc:
+                raise ValueError(
+                    f"request {issue_id} contains an invalid public photograph URL"
+                )
     if len(ids) != len(set(ids)):
         raise ValueError("request ids must be unique")
 
@@ -798,11 +809,14 @@ class AppHandler(SimpleHTTPRequestHandler):
         self.send_header(
             "Content-Security-Policy",
             "default-src 'self'; "
-            "script-src 'self' 'unsafe-inline' https://unpkg.com https://www.googletagmanager.com; "
+            "script-src 'self' 'unsafe-inline' https://unpkg.com https://www.googletagmanager.com "
+            "https://us-assets.i.posthog.com; "
             "style-src 'self' https://unpkg.com; "
-            "img-src 'self' data: blob: https://unpkg.com https://*.tile.openstreetmap.org; "
+            "img-src 'self' data: blob: https://unpkg.com https://*.tile.openstreetmap.org "
+            "https://us-assets.i.posthog.com; "
             "connect-src 'self' https://nominatim.openstreetmap.org "
-            "https://www.google-analytics.com https://region1.google-analytics.com; "
+            "https://www.google-analytics.com https://region1.google-analytics.com "
+            "https://us.i.posthog.com https://us-assets.i.posthog.com; "
             "base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
         )
         super().end_headers()
@@ -856,7 +870,23 @@ class AppHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
-        if path == "/api/health":
+        if path == "/posthog-config.js":
+            token = os.environ.get("POSTHOG_PROJECT_TOKEN", "")
+            host = os.environ.get("POSTHOG_HOST", "https://us.i.posthog.com")
+            body = (
+                "window.POSTHOG_PROJECT_TOKEN="
+                + json.dumps(token)
+                + ";window.POSTHOG_HOST="
+                + json.dumps(host)
+                + ";"
+            ).encode()
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/health":
             self.json_response(
                 HTTPStatus.OK,
                 {

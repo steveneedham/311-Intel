@@ -1,4 +1,4 @@
-const CACHE_NAME = "311-field-intelligence-v4";
+const CACHE_NAME = "311-field-intelligence-v10";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -16,7 +16,10 @@ const APP_SHELL = [
   "./mobility-policy-boundaries.json",
   "./site-metrics.json",
   "./base44-artifacts.json",
-  "./base44-forecast-input.json"
+  "./base44-forecast-input.json",
+  "./daily-forecast.json",
+  "./request-vehicle-traces.json",
+  "./populus-zone-operations.json"
 ];
 
 self.addEventListener("install", event => {
