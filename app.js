@@ -82,7 +82,9 @@ let operationalMap = null;
 let operationalMapLayers = null;
 let operationalMapHasFit = false;
 let operationalMapSearchLayer = null;
+let operationalMapInterventionRenderer = null;
 let mapRecentAddresses = loadMapRecentAddresses();
+const completionNoteDrafts = new Map();
 let slaEvidenceState = { records: [], status: "unavailable" };
 let historicalState = { records: [], status: "loading" };
 let eventState = { events: [], venue: null, source: null, status: "loading" };
@@ -1178,7 +1180,9 @@ function openIssues() {
 
 function issueScore(issue) {
   const priority = ({ critical: 5, high: 3, standard: 1 })[issue.priority] || 0;
-  const recency = ageInHours(issue.reportedAt) <= 24 ? 2 : 1;
+  const sourceAnchor = Math.max(...state.issues.map(item => new Date(item.reportedAt).getTime()).filter(Number.isFinite));
+  const issueTime = new Date(issue.reportedAt).getTime();
+  const recency = Number.isFinite(sourceAnchor) && Number.isFinite(issueTime) && sourceAnchor - issueTime <= 86400000 ? 2 : 1;
   const access = /ADA|entrance/i.test(issue.type) ? 2 : 0;
   return priority + recency + access;
 }
@@ -1617,6 +1621,9 @@ function renderRootCauseReview(issue) {
   if (populus) {
     signals.push(`${populus.operator} · fleet ${populus.currentFleet} · rides ${populus.currentRides} · idle ${populus.currentIdle}${populus.idleMinutes === null ? "" : ` · median idle ${populus.idleMinutes} min`}`);
   }
+  const rootCauseSignal = populus?.pattern && populus.pattern !== "insufficient_evidence"
+    ? populus.pattern
+    : trace?.root_cause_signal || "insufficient_evidence";
   const conclusion = {
     demand_driven_concentration: "Demand-driven concentration: Populus rides and fleet increased together relative to the matched baseline.",
     supply_driven_concentration: "Supply-driven concentration for review: fleet and net deployments rose faster than rides. This does not establish intent.",
@@ -1625,7 +1632,7 @@ function renderRootCauseReview(issue) {
     long_dwell: "A likely matched vehicle remained near the request long enough to support a dwell-management review.",
     vehicle_cluster: "Multiple vehicle candidates were present, so the exact device and causal action remain unresolved.",
     insufficient_evidence: "Insufficient evidence to distinguish rider parking, operator staging, displacement, or another cause."
-  }[populus?.pattern !== "insufficient_evidence" ? populus.pattern : (trace?.root_cause_signal || "insufficient_evidence")];
+  }[rootCauseSignal];
   const confidence = populus && trace?.confidence === "high"
     ? "high"
     : populus || ["high", "medium"].includes(trace?.confidence)
@@ -1636,7 +1643,7 @@ function renderRootCauseReview(issue) {
       <div class="root-cause-heading">
         <div>
           <p class="eyebrow">Root-cause review</p>
-          <h4>${escapeHtml(label(populus?.pattern !== "insufficient_evidence" ? populus.pattern : (trace?.root_cause_signal || "insufficient_evidence")))}</h4>
+          <h4>${escapeHtml(label(rootCauseSignal))}</h4>
         </div>
         <span class="badge badge-${confidence === "high" ? "completed" : confidence === "medium" ? "high" : "standard"}">${escapeHtml(confidence)} confidence</span>
       </div>
@@ -2435,11 +2442,16 @@ function renderInterventions() {
         ${["recommended", "approved"].includes(item.status) ? `<button class="secondary-button" type="button" data-action="skip" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Skip</button>` : ""}
         ${item.status === "approved" ? `<button class="primary-button" type="button" data-action="dispatch" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Dispatch</button>` : ""}
         ${item.status === "dispatched" ? `<label class="completion-control">Completion note
-          <textarea data-completion-note="${item.id}" placeholder="Field result, removal, or disposition" required ${!roleAllows("admin") ? "disabled" : ""}>${escapeHtml(item.completionNotes || "")}</textarea>
+          <textarea data-completion-note="${item.id}" placeholder="Field result, removal, or disposition" required ${!roleAllows("admin") ? "disabled" : ""}>${escapeHtml(completionNoteDrafts.get(item.id) || item.completionNotes || "")}</textarea>
           <button class="primary-button" type="button" data-action="complete" data-id="${item.id}" ${!roleAllows("admin") ? "disabled" : ""}>Complete</button>
         </label>` : ""}
       </div>
     </article>`).join("") : `<div class="empty-card">No interventions have been generated.</div>`;
+  list.querySelectorAll("[data-completion-note]").forEach(textarea => {
+    textarea.addEventListener("input", () => {
+      completionNoteDrafts.set(textarea.dataset.completionNote, textarea.value);
+    });
+  });
   list.querySelectorAll("button[data-view-intervention-area]").forEach(button => {
     button.addEventListener("click", () => {
       const item = state.interventions.find(intervention => intervention.id === button.dataset.viewInterventionArea);
@@ -2542,6 +2554,7 @@ function renderInterventions() {
           return;
         }
         item.completionNotes = completionNotes;
+        completionNoteDrafts.delete(item.id);
       }
       item.status = ({ approve: "approved", dispatch: "dispatched", complete: "completed", skip: "skipped" })[button.dataset.action];
       item.transitions ||= [];
@@ -2846,6 +2859,7 @@ function initOperationalMap() {
   }).addTo(operationalMap);
   operationalMapLayers = L.layerGroup().addTo(operationalMap);
   operationalMapSearchLayer = L.layerGroup().addTo(operationalMap);
+  operationalMapInterventionRenderer = L.svg({ padding: 0.5 });
   window.setTimeout(() => operationalMap.invalidateSize(), 0);
 }
 
@@ -2899,6 +2913,7 @@ function renderOperationalMap() {
         : item.cadence === "rule_policy_change" ? "#075d8d"
           : "#2f6b4f";
       L.circle(point, {
+        renderer: operationalMapInterventionRenderer,
         radius: item.mapArea.radiusMeters,
         color,
         weight: 2.5,
@@ -3686,6 +3701,7 @@ document.getElementById("closeIntervention").addEventListener("click", closeInte
 document.getElementById("cancelIntervention").addEventListener("click", closeInterventionDialog);
 document.getElementById("interventionForm").addEventListener("submit", submitIntervention);
 document.getElementById("interventionTypeInput").addEventListener("change", toggleInterventionExperimentFields);
+document.getElementById("interventionCadenceInput").addEventListener("change", toggleInterventionExperimentFields);
 document.getElementById("closeIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("cancelIntake").addEventListener("click", closeIntakeDialog);
 document.getElementById("intakeForm").addEventListener("submit", submitIntake);
@@ -3752,4 +3768,5 @@ Promise.all([
 ]).then(initializeDurableMode).finally(() => {
   renderDurableMode();
   renderAll();
+  document.documentElement.dataset.appReady = "true";
 });

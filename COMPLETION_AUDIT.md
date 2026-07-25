@@ -10,9 +10,9 @@ and durable local service in `/Users/sjneedhamicloud.com/Documents/311 Intel`
   `6a614b54abec07520930dbea`.
 - A read-only query of the official City of Columbus 30-day ArcGIS feed
   returned 137 unique shared-mobility requests with zero invalid or duplicate
-  rows. All 104 Base44 IDs are present in that feed and 33 City-only records
+  rows. All 108 Base44 IDs are present in that feed and 29 City-only records
   are added to the queue.
-- The verified snapshot contains 8 open and 96 resolved complaints.
+- The preserved Base44 snapshot contains 12 received and 96 closed complaints.
 - Base44 records were not modified while building or testing the local app.
 - Browser validation found no console errors.
 - Test-created local records and assignments were removed after validation.
@@ -156,8 +156,8 @@ and durable local service in `/Users/sjneedhamicloud.com/Documents/311 Intel`
   dispatched, and completed it. Completion without a note was rejected.
   `OUT-002` was then created with explicit windows and evidence. A second
   recommendation, `INT-004`, proved the skipped path and created no outcome.
-- The packaged browser acceptance suite passed all 73 checks on
-  2026-07-24. It starts an isolated local server, uses a disposable browser
+- The packaged browser acceptance suite passed all 103 checks on
+  2026-07-25. It starts an isolated local server, uses a disposable browser
   profile and fixture, and verifies source hydration, GA4 configuration,
   complete queue filters, invalid-import review, OneView lookup and evidence
   review, contact-detail rejection, evidence-qualified ADA claims, non-waiving
@@ -246,9 +246,9 @@ and durable local service in `/Users/sjneedhamicloud.com/Documents/311 Intel`
 | 5 | A qualifying cluster produces an explainable hotspot and recommendation. | Proven locally | A temporary reported accessibility fixture generated a score-7 High hotspot without claiming a confirmed violation. Operator created an intervention preserving its score, source record, independent signal, deterministic team, rationale, and transition. Viewer controls were disabled and duplicate active-zone recommendations are prevented. |
 | 6 | A recommendation cannot be dispatched before approval. | Proven locally | Browser test confirmed a recommended intervention exposes only Approve; Dispatch appears only after approval. |
 | 7 | Completing an intervention creates an outcome path with explicit dates. | Proven locally | Isolated Chromium testing completed recommended → approved → dispatched → completed, required a completion note, and created an inconclusive outcome with four ISO boundary timestamps, readable seven-day windows, baseline source IDs, and completion evidence. A separate skipped recommendation created no outcome. |
-| 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for current feed | The interface shows `City 30-day feed · 137`, preserves all 104 Base44 IDs, and recalculates counts after source hydration and local changes. Dedicated status, source-anchored date, zone, complaint-type, operator, and severity filters are exercised against loaded records. |
+| 8 | Filters and summary counts come from live records rather than hard-coded totals. | Proven for current feed | The interface shows `City 30-day feed · 137`, preserves all 108 Base44 IDs, and recalculates counts after source hydration and local changes. Dedicated status, source-anchored date, zone, complaint-type, operator, and severity filters are exercised against loaded records. |
 | 9 | A non-admin cannot perform admin-only writes. | Proven locally | The server rejects anonymous reads, requires CSRF, permits Operators to assign requests, add recommendations, pause alert rules, and submit evidence challenges, but rejects source-evidence changes, City findings, intervention approval, protected-section edits, malformed intake, duplicate IDs, alert-rule deletion/retargeting, and alert-history mutation. Administrator transitions are accepted. |
-| 10 | Existing records remain present after the change. | Proven locally | Base44 was accessed read-only; all 104 exported IDs remain within the 137-record City-hydrated queue. The service merge test proves source refreshes preserve local lifecycle, team, and notes. |
+| 10 | Existing records remain present after the change. | Proven locally | Base44 was accessed read-only; all 108 exported IDs remain within the 137-record City-hydrated queue. The service merge test proves source refreshes preserve local lifecycle, team, and notes. |
 | 11 | Mobile and desktop layouts preserve operational hierarchy. | Proven locally and deployed statically | Headless Chromium verified the interface at 1440×1000 and 390×844. Mobile requests become touch-friendly cards, navigation targets remain at least 44 pixels high, the masthead does not overflow, and the document width matches the viewport. The public HTTPS deployment exposes a standalone PWA manifest, install icons, offline shell, safe-area spacing, and the same operational hierarchy. |
 | 12 | UI text does not claim unverified functions are live. | Proven locally | The interface labels the 137-record City data as a read-only 30-day feed, distinguishes committed browser evidence from durable mode, and does not claim the optional scheduler is deployed. |
 
@@ -265,12 +265,12 @@ and durable local service in `/Users/sjneedhamicloud.com/Documents/311 Intel`
 
 | Required evidence | Current decision | Authoritative evidence |
 |---|---|---|
-| Live UI walkthrough across the full operational lifecycle | Static PWA is deployed; durable lifecycle remains proven only in an isolated local runtime | The 73-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, outcome, PWA behavior, and responsive layout. The 15-check durable suite covers authenticated persistence and audit history. GitHub Pages cannot host the SQLite service, so durable writes and scheduler evidence still require a container deployment. |
+| Live UI walkthrough across the full operational lifecycle | Static PWA is deployed; durable lifecycle remains proven only in an isolated local runtime | The 103-check browser suite covers intake, queue, detail, hotspot, recommendation, approval, dispatch, completion, outcome, PWA behavior, and responsive layout. The 15-check durable suite covers authenticated persistence and audit history. GitHub Pages cannot host the SQLite service, so durable writes and scheduler evidence still require a container deployment. |
 | Current entity counts and representative records | Proven for the refreshed evidence bundle | Official public-feed refresh contains 137 unique requests; all 108 Base44 IDs remain present and 29 City-only records are added. |
 | Scheduled workflows active with recent successful runs | Proven in a disposable durable runtime; production deployment evidence missing | With the real scheduler and City sync enabled, the runtime recorded repeated successful `city_311_sync`, `daily_brief`, and `alert_evaluation` runs through 2026-07-24 02:08:13Z. No production host currently supplies persistent runtime records. |
 | Administrator and non-administrator permission checks | Proven locally | Browser and API tests cover Viewer, Operator, and Administrator paths, protected sections, source evidence, interventions, malformed intake, duplicate IDs, alerts, and append-only histories. |
-| Build/runtime check with no blocking errors | Proven locally; container-host build remains external | JavaScript syntax, 67 browser checks, 15 durable-browser checks, and 12 standard-library tests pass. Docker is unavailable in this workspace, so a host image build is not claimed. |
-| Existing complaint IDs preserved | Proven locally | The acceptance suite compares the 104 Base44 source IDs with the 137-record hydrated queue and requires every ID to remain present. |
+| Build/runtime check with no blocking errors | Proven locally; container-host build remains external | The complete current command passed 103 browser checks, 15 durable-browser checks, and 16 standard-library tests on 2026-07-25. Docker is unavailable in this workspace, so a host image build is not claimed. |
+| Existing complaint IDs preserved | Proven locally | The acceptance suite compares the 108 Base44 source IDs with the 137-record hydrated queue and requires every ID to remain present. |
 
 The product behavior is implemented and locally verified. Completion under the
 spec remains intentionally unclaimed until a controlled deployment supplies a
@@ -282,7 +282,7 @@ The immutable feature commit `62e4137` was exported into a temporary directory
 and started with SQLite, the scheduler, and read-only City sync enabled. The
 health endpoint reported `status: ok`, SQLite storage, a two-second evaluation
 interval, and both scheduler and City sync enabled. The initialized state held
-137 unique request IDs and all 104 preserved Base44 IDs. Multiple real scheduler
+137 unique request IDs and all 108 preserved Base44 IDs. Multiple real scheduler
 cycles independently recorded:
 
 - `city_311_sync`: success, 137 source records, zero invalid, zero duplicate

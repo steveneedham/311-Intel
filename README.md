@@ -9,8 +9,8 @@ available data proves.
 ## What is verified
 
 - The current City of Columbus 30-day public feed contributes 137 deduplicated
-  complaint records. All 104 IDs from the preserved Base44 export remain
-  present; 33 newer City-only records are added without overwriting local
+  complaint records. All 108 IDs from the preserved Base44 export remain
+  present; 29 newer City-only records are added without overwriting local
   ownership, notes, evidence review, or lifecycle state.
 - New local JSON records are normalized, deduplicated by source ID, and shown
   in the queue. Invalid records are excluded and retained in a correction
@@ -80,7 +80,7 @@ available data proves.
   tag from the still-unconnected Reporting API. It shows browser-local section
   counts only on the current device and tests current reachability without
   presenting that check as historical uptime.
-- Base44 artifacts are integrated read-only: 104 preserved
+- Base44 artifacts are integrated read-only: 108 preserved
   `MicromobilityComplaint` records support the source snapshot, while nine
   unpopulated operational entity schemas are labeled as available data
   contracts rather than live derived data. GitHub remains the source of truth.

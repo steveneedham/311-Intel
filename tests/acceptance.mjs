@@ -64,6 +64,7 @@ try {
     count => document.getElementById("dataMode")?.innerText.includes(String(count)),
     expectedCityCount
   );
+  await page.waitForFunction(() => document.documentElement.dataset.appReady === "true");
 
   check(
     (await page.locator("#dataMode").innerText()).includes(`City 30-day feed · ${expectedCityCount}`),
@@ -479,7 +480,7 @@ try {
   check(metricsText.includes(String(base44Snapshot.entities.length)) && metricsText.includes("preserved complaint records") && metricsText.includes("0") && metricsText.includes("populated records in those derived entities"), "Base44 artifacts are integrated without presenting empty derived entities as live data");
   await page.locator("#checkUptime").click();
   await page.locator("#uptimeMetrics").getByText("Reachable now").waitFor();
-  check((await page.locator("#uptimeMetrics").innerText()).includes("Reachable now"), "current reachability is checked without claiming historical uptime");
+  check((await page.locator("#uptimeMetrics").innerText()).toLowerCase().includes("reachable now"), "current reachability is checked without claiming historical uptime");
 
   check(pageErrors.length === 0, "desktop run has no JavaScript page errors");
   await context.close();

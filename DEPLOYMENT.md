@@ -88,7 +88,7 @@ Before exposing the app beyond a controlled evaluation:
    acceptance suite against that deployment.
 5. Verify the scheduler has recent successful `city_311_sync`, `daily_brief`,
    and `alert_evaluation` runs.
-6. Confirm the current City count is plausible, IDs are unique, and all 104
+6. Confirm the current City count is plausible, IDs are unique, and all 108
    preserved Base44 complaint IDs remain present.
 7. Confirm a City refresh does not overwrite local request status, assigned
    team, notes, evidence review, interventions, or outcomes.
