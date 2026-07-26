@@ -11,6 +11,9 @@ const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 const cityFeed = JSON.parse(readFileSync(resolve(root, "columbus-311-current.json"), "utf8"));
 const base44Snapshot = JSON.parse(readFileSync(resolve(root, "base44-live-snapshot.json"), "utf8"));
 const expectedCityCount = cityFeed.records.length;
+const acceptanceReportedAt = new Date(
+  Math.max(...cityFeed.records.map(record => new Date(record.reported_at).getTime())) + 60000
+).toISOString();
 const preservedBase44Ids = base44Snapshot.entities.map(record => record.source_id);
 const server = spawn("python3", ["-m", "http.server", String(port), "--bind", "127.0.0.1"], {
   cwd: root,
@@ -71,8 +74,15 @@ try {
     `${expectedCityCount}-record City feed loads`
   );
   check(
-    await page.locator("#dataFeedUpdatedAt").getAttribute("datetime") === new Date(base44Snapshot.exported_at).toISOString()
-      && (await page.locator("#dataFeedStatus").innerText()).includes("Data feed updates"),
+    await page.evaluate(() => {
+      const header = document.getElementById("dataFeedUpdatedAt")?.getAttribute("datetime");
+      const feedTimes = [...document.querySelectorAll("#dataFeedUpdateList .data-feed-update time")]
+        .map(element => element.getAttribute("datetime"))
+        .filter(Boolean);
+      return header
+        && new Date(header).getTime() === Math.max(...feedTimes.map(value => new Date(value).getTime()))
+        && document.getElementById("dataFeedStatus")?.textContent.includes("Data feed updates");
+    }),
     "header shows the latest update across all loaded data feeds"
   );
   check(await page.evaluate(({ fetchedAt, recordCount }) => {
@@ -80,9 +90,10 @@ try {
     return city?.updatedAt?.toISOString() === new Date(fetchedAt).toISOString()
       && city.detail.includes(String(recordCount));
   }, { fetchedAt: cityFeed.fetched_at, recordCount: cityFeed.records.length }), "City 311 remains a separately timestamped feed");
+  await page.waitForFunction(() => document.querySelectorAll("#dataFeedUpdateList .data-feed-update").length === 13);
   check(
     await page.locator("#dataFeedUpdateList .data-feed-update").count() === 13
-      && await page.locator("#dataFeedUpdateList").innerText().then(text =>
+      && await page.locator("#dataFeedUpdateList").textContent().then(text =>
         ["Base44 complaint snapshot", "City of Columbus 311", "GBFS vehicle positions", "External event schedule", "Mobility policy boundaries", "Daily 311 forecast", "Populus operations"]
           .every(label => text.includes(label))
       ),
@@ -274,14 +285,14 @@ try {
 
   await page.locator('[data-view="vehicles"]').click();
   const vehicleText = await page.locator("#pileupList").innerText();
-  check((await page.locator("#vehicleSnapshotNote").innerText()).includes("2026-07-24 · 01:04:04 UTC"), "newest GBFS snapshot timestamp renders");
-  check((await page.locator("#vehicleMetrics").innerText()).includes("3,592"), "newest GBFS position count renders");
+  check((await page.locator("#vehicleSnapshotNote").innerText()).includes("2026-07-26 · 00:15:02 UTC"), "newest GBFS snapshot timestamp renders");
+  check((await page.locator("#vehicleMetrics").innerText()).includes("3,529"), "newest GBFS position count renders");
   check(vehicleText.includes("1 vehicle within 250 m") && vehicleText.includes("No cross-vendor condition in this snapshot"), "latest Goodale observation shows the prior pile-up has cleared");
-  check(vehicleText.toLowerCase().includes("historical recovery window") && vehicleText.includes("6 vehicles in the event-linked snapshot"), "prior event-linked pile-up remains in history");
-  check(vehicleText.includes("Columbus Crew vs. New York City FC"), "official event context renders");
+  check((await page.locator('.watch-history span[title*="20260723T044626Z · 6 vehicles"]').count()) === 1, "prior event-linked pile-up remains in history");
+  check(vehicleText.includes("Columbus Crew vs. FC Cincinnati"), "current official event context renders");
   check(vehicleText.includes("event median 6 vs. non-event median 2"), "event and non-event comparison renders");
   check(vehicleText.includes("Association only"), "causation boundary renders");
-  check((await page.locator(".watch-history").getAttribute("aria-label")).includes("10 snapshots") && await page.locator(".watch-history .event-linked-bar").count() === 1, "one of ten watch observations is event linked");
+  check((await page.locator(".watch-history").getAttribute("aria-label")).includes("12 snapshots") && await page.locator(".watch-history .event-linked-bar").count() === 2, "two of twelve watch observations are event linked");
 
   await page.locator('[data-view="briefing"]').click();
   check((await page.locator("#dailyBrief").innerText()).includes("Unresolved critical items"), "daily brief contains required attention sections");
@@ -310,7 +321,7 @@ try {
         address: "100 TEST PLAZA",
         zone_id: "acceptance_zone",
         operator: "unknown",
-        reported_at: "2026-07-23T19:45:00Z",
+        reported_at: acceptanceReportedAt,
         status: "received",
         latitude: 39.9612,
         longitude: -82.9988
@@ -494,10 +505,13 @@ try {
   const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const mobilePage = await mobileContext.newPage();
   await mobilePage.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await mobilePage.waitForFunction(() => document.getElementById("dataMode")?.innerText.includes("137"));
+  await mobilePage.waitForFunction(
+    count => document.getElementById("dataMode")?.innerText.includes(String(count)),
+    expectedCityCount
+  );
   await mobilePage.locator('[data-view="vehicles"]').click();
   check(await mobilePage.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth), "mobile document has no horizontal overflow");
-  check((await mobilePage.locator("#pileupList").innerText()).includes("Columbus Crew vs. New York City FC"), "event evidence preserves mobile hierarchy");
+  check((await mobilePage.locator("#pileupList").innerText()).includes("Columbus Crew vs. FC Cincinnati"), "event evidence preserves mobile hierarchy");
   await mobilePage.locator('[data-view="map"]').click();
   check(await mobilePage.evaluate(() => document.documentElement.scrollWidth === document.documentElement.clientWidth), "map search controls do not create mobile overflow");
   check(await mobilePage.locator("#mapNearMe").evaluate(element => element.getBoundingClientRect().height >= 44), "Near me meets mobile touch target sizing");

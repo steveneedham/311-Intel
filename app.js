@@ -1046,6 +1046,17 @@ function eventContextForTime(value) {
   return windows.toSorted((a, b) => Math.abs(a.hoursFromEnd) - Math.abs(b.hoursFromEnd))[0] || null;
 }
 
+function eventTimingDescription(context) {
+  if (!context) return "outside the documented event windows";
+  if (context.window === "during_event") {
+    return `${Math.abs(context.hoursFromEnd).toFixed(1)} hours before the estimated match end`;
+  }
+  if (context.window === "pre_event") {
+    return `${Math.abs(context.hoursFromEnd).toFixed(1)} hours before the estimated match end, during the pre-event window`;
+  }
+  return `${Math.abs(context.hoursFromEnd).toFixed(1)} hours after the estimated match end`;
+}
+
 function eventEvidenceForIssue(issue) {
   if (!eventState.venue || !Number.isFinite(issue.lat) || !Number.isFinite(issue.lng)) return null;
   const venueDistance = distanceMeters(issue, eventState.venue);
@@ -2220,12 +2231,13 @@ function renderHotspots() {
   const eventAnalysis = watchEventAnalysis();
   const latestLinkedObservation = eventAnalysis.eventLinked.at(-1);
   const latestEventContext = latestLinkedObservation?.eventContext;
+  const latestIsEventLinked = latestLinkedObservation?.snapshot_id === eventAnalysis.latest?.snapshot_id;
   const eventWatchCard = latestEventContext ? `
     <article class="hotspot-item named-watch event-watch">
       <span class="badge badge-high">Historical event-window observation</span>
       <h3>Goodale and Olentangy after ${escapeHtml(latestEventContext.event.name)}</h3>
-      <p>The ${new Date(latestLinkedObservation.observedAt).toLocaleString()} GBFS snapshot was captured ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after the estimated match end and contains ${latestLinkedObservation.watch_count} vehicles within 250 metres of the named watch.</p>
-      <p>The newer ${new Date(eventAnalysis.latest.observedAt).toLocaleString()} observation contains ${eventAnalysis.latest.watch_count} vehicle${eventAnalysis.latest.watch_count === 1 ? "" : "s"} and ${eventAnalysis.latest.cross_vendor ? "still has" : "does not have"} a cross-vendor condition. This updates the current state without erasing the earlier observation.</p>
+      <p>The ${new Date(latestLinkedObservation.observedAt).toLocaleString()} GBFS snapshot was captured ${eventTimingDescription(latestEventContext)} and contains ${latestLinkedObservation.watch_count} vehicles within 250 metres of the named watch.</p>
+      <p>${latestIsEventLinked ? "This is the latest observation" : `The newer ${new Date(eventAnalysis.latest.observedAt).toLocaleString()} observation`} and ${eventAnalysis.latest.cross_vendor ? "has" : "does not have"} a cross-vendor condition. The complete history remains available for comparison.</p>
       <p>${eventAnalysis.eventLinked.length} of ${eventAnalysis.observations.length} observations fall within a defined event window. Event-window median: ${eventAnalysis.eventMedian ?? "—"}; non-event median: ${eventAnalysis.baselineMedian ?? "—"}. One event-linked observation is insufficient to establish recurrence or causation.</p>
       <p><strong>Join rule:</strong> four hours pre-event; official kickoff through an estimated 2h15 end; 0–2 hours immediate post-event; 2–6 hours recovery; 6–16 hours next morning.</p>
       <p><a href="${escapeHtml(eventState.source?.url || "#")}" target="_blank" rel="noreferrer">Official Columbus Crew schedule source</a> · expected end times are analytical estimates.</p>
@@ -3206,11 +3218,12 @@ function renderPileups() {
     }).join("");
     const latestLinkedObservation = eventAnalysis.eventLinked.at(-1);
     const latestEventContext = latestLinkedObservation?.eventContext;
+    const latestIsEventLinked = latestLinkedObservation?.snapshot_id === eventAnalysis.latest?.snapshot_id;
     const eventSummary = latestEventContext ? `
       <div class="event-context">
         <strong>Historical ${escapeHtml(label(latestEventContext.window))}</strong>
-        <p>${escapeHtml(latestEventContext.event.name)} · ${latestLinkedObservation.watch_count} vehicles in the event-linked snapshot, captured ${Math.abs(latestEventContext.hoursFromEnd).toFixed(1)} hours after estimated end.</p>
-        <p>The latest observation is outside the event window and has ${eventAnalysis.latest.watch_count} vehicle${eventAnalysis.latest.watch_count === 1 ? "" : "s"}; ${eventAnalysis.latest.cross_vendor ? "a cross-vendor condition remains" : "the earlier cross-vendor condition is not present"}.</p>
+        <p>${escapeHtml(latestEventContext.event.name)} · ${latestLinkedObservation.watch_count} vehicles in the event-linked snapshot, captured ${eventTimingDescription(latestEventContext)}.</p>
+        <p>The latest observation ${latestIsEventLinked ? "is this event-linked snapshot" : "is outside the event window"} and has ${eventAnalysis.latest.watch_count} vehicle${eventAnalysis.latest.watch_count === 1 ? "" : "s"}; ${eventAnalysis.latest.cross_vendor ? "a cross-vendor condition is present" : "no cross-vendor condition is present"}.</p>
         <p>${eventAnalysis.eventLinked.length} event-window observation${eventAnalysis.eventLinked.length === 1 ? "" : "s"}; event median ${eventAnalysis.eventMedian ?? "—"} vs. non-event median ${eventAnalysis.baselineMedian ?? "—"}. Association only; more match and non-match observations are required.</p>
         <a href="${escapeHtml(eventState.source?.url || "#")}" target="_blank" rel="noreferrer">Official schedule</a>
       </div>` : `<p>No loaded observation falls inside a verified event window.</p>`;
