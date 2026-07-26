@@ -126,6 +126,15 @@ try {
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
   check(await page.locator('link[rel="manifest"][href="manifest.webmanifest"]').count() === 1, "PWA manifest is linked");
+  const fieldOpsLink = page.locator(".field-ops-link");
+  check(
+    await fieldOpsLink.count() === 1
+      && (await fieldOpsLink.getAttribute("href"))?.startsWith("https://russet-city-pulse-ops.base44.app")
+      && await fieldOpsLink.getAttribute("target") === "_blank"
+      && /Field Ops View/i.test(await fieldOpsLink.innerText())
+      && (await fieldOpsLink.innerText()).includes("Multi-vendor attribution"),
+    "highlighted Field Ops View links to the multi-vendor helper"
+  );
   check((await page.locator(".site-footer").innerText()).includes("© 2026 Steven Needham") && (await page.locator(".footer-tagline").innerText()) === "Made in Columbus, Ohio.", "copyright and Columbus tagline render");
   check(await page.evaluate(async () => {
     const manifest = await fetch("manifest.webmanifest").then(response => response.json());

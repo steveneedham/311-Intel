@@ -140,6 +140,32 @@ button, select, input, textarea { touch-action: manipulation; }
   padding-bottom: 6px;
 }
 
+.field-ops-link {
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px 9px 14px;
+  border-left: 3px solid var(--civic-red);
+  box-shadow: 0 8px 20px rgba(0, 30, 48, 0.16);
+  color: var(--civic-blue-dark);
+  background: white;
+  text-decoration: none;
+}
+
+.field-ops-link strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.field-ops-link span {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 650;
+}
+
+.field-ops-link:hover { background: var(--green-soft); }
+.field-ops-link:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+
 .role-control {
   display: grid;
   gap: 3px;
@@ -894,7 +920,8 @@ tbody tr:hover, tbody tr.selected { background: #f2f5f2; }
   .section-actions { width: 100%; align-items: flex-start; flex-direction: column; }
   .masthead-meta { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 0; }
   .masthead-meta > * { min-width: 0; }
-  .live-mark, .source-refresh-status, .role-control { grid-column: 1 / -1; }
+  .field-ops-link, .live-mark, .source-refresh-status, .role-control { grid-column: 1 / -1; }
+  .field-ops-link { min-height: 44px; align-content: center; }
   .source-refresh-status summary { min-height: 44px; padding: 8px 32px 8px 10px; align-content: center; }
   .data-feed-update-list { position: static; width: 100%; max-height: 60vh; border-width: 1px 0 0; box-shadow: none; }
   .masthead .quiet-button, .masthead .file-button { min-height: 44px; padding: 11px 10px; border: 1px solid rgba(255,255,255,0.42); text-align: center; }
