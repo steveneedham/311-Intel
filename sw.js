@@ -1,10 +1,16 @@
-const CACHE_NAME = "311-field-intelligence-v13";
+const CACHE_NAME = "311-field-intelligence-v14";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.webmanifest",
+  "./311intel-favicon.ico",
+  "./311intel-icon.svg",
+  "./311intel-icon-16.png",
+  "./311intel-icon-32.png",
+  "./311intel-icon-180.png",
+  "./311intel-lockup.svg",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./columbus-311-current.json",

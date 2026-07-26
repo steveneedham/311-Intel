@@ -126,6 +126,12 @@ try {
   check(await page.locator('script[src*="G-V40E4MZEMV"]').count() === 1, "GA4 script is present once");
   check(await page.evaluate(() => window.dataLayer?.some(item => item?.[0] === "config" && item?.[1] === "G-V40E4MZEMV")), "GA4 property is configured");
   check(await page.locator('link[rel="manifest"][href="manifest.webmanifest"]').count() === 1, "PWA manifest is linked");
+  check(
+    await page.locator('.brand-lockup img[src="311intel-lockup.svg"][alt="311 Intel — Field Intelligence"]').count() === 1
+      && await page.locator('link[rel="icon"][href="311intel-icon.svg"]').count() === 1
+      && await page.locator('link[rel="apple-touch-icon"][href="311intel-icon-180.png"]').count() === 1,
+    "311 Intel masthead and device branding assets are linked"
+  );
   const fieldOpsLink = page.locator(".field-ops-link");
   check(
     await fieldOpsLink.count() === 1

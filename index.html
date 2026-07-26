@@ -11,8 +11,11 @@
   <meta name="apple-mobile-web-app-title" content="311 Intel">
   <title>311 Field Intelligence</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" href="311intel-favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="311intel-icon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="311intel-icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="311intel-icon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="311intel-icon-180.png">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-V40E4MZEMV"></script>
   <script>
@@ -22,21 +25,23 @@
     gtag('config', 'G-V40E4MZEMV');
   </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=20260725-field-ops">
+  <link rel="stylesheet" href="styles.css?v=20260726-brand">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
   <header class="masthead">
     <div class="civic-lockup">
-      <p class="city-wordmark"><span>The City of</span> Columbus</p>
+      <div class="brand-lockup">
+        <img src="311intel-lockup.svg" alt="311 Intel — Field Intelligence" width="486" height="170">
+      </div>
       <nav class="service-breadcrumb" aria-label="Service context">
         <span>Services</span><span aria-hidden="true">/</span>
         <span>Parking &amp; Street Services</span><span aria-hidden="true">/</span>
         <span>Mobility &amp; Parking Services</span>
       </nav>
       <p class="eyebrow">311 · Shared mobility operations</p>
-      <h1>311 Field Intelligence</h1>
+      <h1 class="visually-hidden">311 Field Intelligence</h1>
       <p class="demo-label">Demo website</p>
       <p class="prototype-label">
         Independent operational prototype · Not an official City record system ·
