@@ -300,14 +300,14 @@ try {
 
   await page.locator('[data-view="vehicles"]').click();
   const vehicleText = await page.locator("#pileupList").innerText();
-  check((await page.locator("#vehicleSnapshotNote").innerText()).includes("2026-07-26 · 16:49:47 UTC"), "newest GBFS snapshot timestamp renders");
-  check((await page.locator("#vehicleMetrics").innerText()).includes("3,538"), "newest GBFS position count renders");
+  check((await page.locator("#vehicleSnapshotNote").innerText()).includes("2026-07-27 · 16:39:03 UTC"), "newest GBFS snapshot timestamp renders");
+  check((await page.locator("#vehicleMetrics").innerText()).includes("3,546"), "newest GBFS position count renders");
   check(vehicleText.includes("2 vehicles within 250 m") && vehicleText.includes("Cross-vendor presence in this snapshot"), "latest Goodale observation shows the current cross-vendor condition");
   check((await page.locator('.watch-history span[title*="20260723T044626Z · 6 vehicles"]').count()) === 1, "prior event-linked pile-up remains in history");
   check(vehicleText.includes("Columbus Crew vs. FC Cincinnati"), "current official event context renders");
   check(vehicleText.includes("event median 2 vs. non-event median 2"), "event and non-event comparison renders");
   check(vehicleText.includes("Association only"), "causation boundary renders");
-  check((await page.locator(".watch-history").getAttribute("aria-label")).includes("13 snapshots") && await page.locator(".watch-history .event-linked-bar").count() === 3, "three of thirteen watch observations are event linked");
+  check((await page.locator(".watch-history").getAttribute("aria-label")).includes("15 snapshots") && await page.locator(".watch-history .event-linked-bar").count() === 3, "three of fifteen watch observations are event linked");
 
   await page.locator('[data-view="briefing"]').click();
   check((await page.locator("#dailyBrief").innerText()).includes("Unresolved critical items"), "daily brief contains required attention sections");
