@@ -304,14 +304,14 @@ try {
 
   await page.locator('[data-view="vehicles"]').click();
   const vehicleText = await page.locator("#pileupList").innerText();
-  check((await page.locator("#vehicleSnapshotNote").innerText()).includes("2026-07-29 · 09:53:16 UTC"), "newest GBFS snapshot timestamp renders");
-  check((await page.locator("#vehicleMetrics").innerText()).includes("3,562"), "newest GBFS position count renders");
-  check(vehicleText.includes("1 vehicle within 250 m") && vehicleText.includes("No cross-vendor condition in this snapshot"), "latest Goodale observation shows the current single-vendor condition");
+  check((await page.locator("#vehicleSnapshotNote").innerText()).includes("2026-07-29 · 19:15:03 UTC"), "newest GBFS snapshot timestamp renders");
+  check((await page.locator("#vehicleMetrics").innerText()).includes("3,620"), "newest GBFS position count renders");
+  check(vehicleText.includes("0 vehicles within 250 m") && vehicleText.includes("No cross-vendor condition in this snapshot"), "latest Goodale observation shows the current empty condition");
   check((await page.locator('.watch-history span[title*="20260723T044626Z · 6 vehicles"]').count()) === 1, "prior event-linked pile-up remains in history");
   check(vehicleText.includes("Columbus Crew vs. FC Cincinnati"), "current official event context renders");
   check(vehicleText.includes("event median 2 vs. non-event median 2"), "event and non-event comparison renders");
   check(vehicleText.includes("Association only"), "causation boundary renders");
-  check((await page.locator(".watch-history").getAttribute("aria-label")).includes("16 snapshots") && await page.locator(".watch-history .event-linked-bar").count() === 3, "three of sixteen watch observations are event linked");
+  check((await page.locator(".watch-history").getAttribute("aria-label")).includes("17 snapshots") && await page.locator(".watch-history .event-linked-bar").count() === 3, "three of seventeen watch observations are event linked");
 
   await page.locator('[data-view="briefing"]').click();
   check((await page.locator("#dailyBrief").innerText()).includes("Unresolved critical items"), "daily brief contains required attention sections");
