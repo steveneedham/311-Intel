@@ -11,9 +11,10 @@ from pathlib import Path
 
 
 DEFAULT_SNAPSHOT_ROOT = Path(
-    "/Users/sjneedhamicloud.com/Library/CloudStorage/"
-    "GoogleDrive-sjneedham1974@gmail.com/My Drive/"
-    "columbus_micromobility_snapshots"
+    os.environ.get(
+        "GBFS_SNAPSHOT_ROOT",
+        Path(__file__).resolve().parent / "snapshots"
+    )
 )
 SNAPSHOT_PATTERN = "*/snapshots/columbus_scooters_*.csv"
 SNAPSHOT_ID_PATTERN = re.compile(r"^columbus_scooters_(\d{8}T\d{6}Z)$")
@@ -37,7 +38,7 @@ def parse_args():
     parser.add_argument(
         "--snapshot-root",
         type=Path,
-        default=Path(os.environ.get("GBFS_SNAPSHOT_ROOT", DEFAULT_SNAPSHOT_ROOT)),
+        default=DEFAULT_SNAPSHOT_ROOT,
         help="Root containing timestamped snapshot directories.",
     )
     parser.add_argument(
