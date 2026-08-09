@@ -1,3 +1,5 @@
+import { PileupDashboard } from './pileup-dashboard.js';
+
 const STORAGE_KEY = "311-field-intelligence-trial-v1";
 const ROLE_KEY = "311-field-intelligence-trial-role";
 const SECTION_VIEW_KEY = "311-field-intelligence-section-views-v1";
@@ -121,6 +123,12 @@ const vehicleWatchLocations = [
     comparison: "Compare pre-event, 0–2 hour immediate, 2–6 hour recovery, next-morning, and non-event snapshots."
   }
 ];
+
+const appState = {
+  selectedPileup: null
+};
+
+let pileupDashboard = null;
 
 function loadState() {
   try {
@@ -1006,6 +1014,21 @@ async function hydratePolicyBoundaries() {
     console.warn("Published mobility-policy boundaries unavailable.", error);
     policyBoundaryState = { boundaries: [], complaints: [], summary: null, source: null, method: null, status: "unavailable" };
     recordDataFeedUpdate("mobility-policy", "Mobility policy boundaries", null, error.message, "unavailable");
+  }
+}
+
+async function hydratePileupDashboard() {
+  try {
+    if (!pileupDashboard) {
+      pileupDashboard = new PileupDashboard(appState);
+    }
+    const data = await pileupDashboard.loadPileupData();
+    if (data?.summary) {
+      recordDataFeedUpdate("pileup-analysis", "Vehicle pileup analysis", data.fetched_at, `${data.summary.total_pileups_detected} pileups detected (${data.summary.active_pileup_count} active)`);
+    }
+  } catch (error) {
+    console.warn("Pileup analysis unavailable.", error);
+    recordDataFeedUpdate("pileup-analysis", "Vehicle pileup analysis", null, error.message, "unavailable");
   }
 }
 
@@ -3850,6 +3873,14 @@ document.getElementById("resetDemo").addEventListener("click", async () => {
   showNotice(restoredSources.snapshotLoaded ? "Local changes cleared; verified source records restored." : "Local trial data restored.", "success");
 });
 
+document.addEventListener('pileupSelected', (event) => {
+  const { lat, lng } = event.detail;
+  initOperationalMap();
+  if (operationalMap) {
+    operationalMap.setView([lat, lng], 15);
+  }
+});
+
 Promise.all([
   hydrateOperationalSources(),
   hydrateVehiclePositions(),
@@ -3860,6 +3891,7 @@ Promise.all([
   hydrateRequestVehicleTraces(),
   hydratePopulusOperations(),
   hydratePolicyBoundaries(),
+  hydratePileupDashboard(),
   hydrateSiteMetrics()
 ]).then(initializeDurableMode).finally(() => {
   renderDurableMode();
