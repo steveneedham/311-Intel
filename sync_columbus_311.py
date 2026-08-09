@@ -25,12 +25,13 @@ def fetch_from_source(url, timeout=30):
 
 
 def build_feed_from_snapshot(snapshot_data, fetched_at=None):
-    """Build feed from a snapshot array of 311 records."""
+    """Build feed from a snapshot of 311 records."""
     records = []
     review = []
     seen = set()
     duplicates = 0
-    for feature in snapshot_data:
+    snapshot_records = snapshot_data.get("records", []) if isinstance(snapshot_data, dict) else snapshot_data
+    for feature in snapshot_records:
         normalized = {
             "attributes": {
                 "CASE_ID": feature.get("CASE_ID"),

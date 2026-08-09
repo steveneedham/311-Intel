@@ -13,16 +13,14 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 
 
-DEFAULT_SNAPSHOT_ROOT = Path(
-    os.environ.get(
-        "GBFS_SNAPSHOT_ROOT",
-        "https://raw.githubusercontent.com/steveneedham/columbus-micromobility-data/main/snapshots",
-    )
+DEFAULT_SNAPSHOT_ROOT = os.environ.get(
+    "GBFS_SNAPSHOT_ROOT",
+    "/workspace/steveneedham/columbus-micromobility-data/snapshots",
 )
 REMOTE_SNAPSHOT_BASE_URL = (
     "https://raw.githubusercontent.com/steveneedham/columbus-micromobility-data/main/snapshots"
 )
-SNAPSHOT_PATTERN = "*/snapshots/columbus_scooters_*.csv"
+SNAPSHOT_PATTERN = "**/columbus_scooters_*.csv"
 SNAPSHOT_ID_PATTERN = re.compile(r"^columbus_scooters_(\d{8}T\d{6}Z)$")
 GOODALE_OLENTANGY = {
     "id": "WATCH-GOODALE-OLENTANGY",
@@ -66,9 +64,12 @@ def parse_args():
 
 
 def snapshot_id(path):
-    match = SNAPSHOT_ID_PATTERN.match(path.stem)
+    filename = path.stem if hasattr(path, 'stem') else path
+    if filename == "columbus_scooters_latest":
+        return "latest"
+    match = SNAPSHOT_ID_PATTERN.match(filename)
     if not match:
-        raise ValueError(f"Unrecognized snapshot filename: {path.name}")
+        raise ValueError(f"Unrecognized snapshot filename: {filename}")
     return match.group(1)
 
 
@@ -80,30 +81,11 @@ def fetch_remote_file(url):
 
 
 def list_remote_snapshots(base_url):
-    """List available CSV snapshots from remote GitHub directory."""
-    api_url = (
-        base_url.replace(
-            "https://raw.githubusercontent.com/",
-            "https://api.github.com/repos/",
-        )
-        .replace("/main/", "/contents/")
+    """List available CSV snapshots from remote GitHub directory (not implemented, requires local path)."""
+    raise NotImplementedError(
+        "Remote snapshot listing requires a local path. "
+        "Set GBFS_SNAPSHOT_ROOT to a local directory or clone columbus-micromobility-data repository."
     )
-    request = Request(
-        api_url, headers={"User-Agent": "311-Intel/1.0 gbfs-snapshot-builder"}
-    )
-    with urlopen(request, timeout=30) as response:
-        data = json.load(response)
-    snapshots = []
-    for item in data:
-        if item["name"].endswith(".csv") and item["name"].startswith("columbus_scooters_"):
-            snapshots.append(
-                {
-                    "name": item["name"],
-                    "url": item["download_url"],
-                    "id": snapshot_id(Path(item["name"])),
-                }
-            )
-    return sorted(snapshots, key=lambda x: x["id"])
 
 
 def find_snapshots(root):
@@ -112,9 +94,10 @@ def find_snapshots(root):
     root = Path(root) if isinstance(root, str) else root
     if not root.is_dir():
         raise FileNotFoundError(f"Snapshot root does not exist: {root}")
-    snapshots = sorted(root.glob(SNAPSHOT_PATTERN), key=snapshot_id)
-    if not snapshots:
+    all_snapshots = list(root.glob(SNAPSHOT_PATTERN))
+    if not all_snapshots:
         raise FileNotFoundError(f"No snapshot CSVs found below: {root}")
+    snapshots = sorted(all_snapshots, key=lambda p: snapshot_id(p))
     ids = [snapshot_id(path) for path in snapshots]
     duplicates = sorted({item for item in ids if ids.count(item) > 1})
     if duplicates:
@@ -164,10 +147,11 @@ def read_positions(source):
         "Is_Disabled",
         "Is_Reserved",
     }
+    optional = {"Is_Disabled", "Is_Reserved"}
     missing = required.difference(reader.fieldnames or [])
-    if missing:
+    if missing and not missing.issubset(optional):
         raise ValueError(
-            f"{filename} is missing columns: {', '.join(sorted(missing))}"
+            f"{filename} is missing columns: {', '.join(sorted(missing - optional))}"
         )
     for row in reader:
         try:
@@ -185,8 +169,8 @@ def read_positions(source):
                     "battery": int(float(row["Battery_Pct"] or 0)),
                     "range": round(float(row["Range_Miles"] or 0), 1),
                     "available": row["Is_Available"].lower() == "true",
-                    "disabled": row["Is_Disabled"].lower() == "true",
-                    "reserved": row["Is_Reserved"].lower() == "true",
+                    "disabled": row.get("Is_Disabled", "false").lower() == "true",
+                    "reserved": row.get("Is_Reserved", "false").lower() == "true",
                 }
             )
         except (KeyError, TypeError, ValueError):
