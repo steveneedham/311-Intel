@@ -805,6 +805,9 @@ async function hydrateFromCityFeed() {
       existingById.set(issue.id, issue);
       added += 1;
     });
+
+    enrichComplaintsWithVehicleData(state.issues);
+
     state.cityFeedFetchedAt = feed.fetched_at || "";
     state.cityFeedRecordCount = records.length;
     state.importReview ||= [];
@@ -833,6 +836,54 @@ async function hydrateFromCityFeed() {
     recordDataFeedUpdate("city-311", "City of Columbus 311", null, error.message, "unavailable");
     return null;
   }
+}
+
+function enrichComplaintsWithVehicleData(records) {
+  const PROXIMITY_THRESHOLD = 50;
+  records.forEach(record => {
+    const matches = vehicleState.vehicles
+      .map(vehicle => ({
+        vehicle,
+        distance: distanceMeters(record, vehicle)
+      }))
+      .filter(item => item.distance <= PROXIMITY_THRESHOLD)
+      .toSorted((a, b) => a.distance - b.distance);
+
+    const matchedVendors = [...new Set(matches.map(m => m.vehicle.company))];
+    const pileupMatch = vehicleState.pileups.find(pileup =>
+      distanceMeters(record, pileup) <= 20
+    );
+
+    if (matches.length > 0) {
+      const primaryVendor = matches[0].vehicle.company;
+      const confidence = matches.length === 1 || matches[0].vehicle.company !== (matches[1]?.vehicle.company)
+        ? "vehicle-proximity-match"
+        : "vehicle-proximity-ambiguous";
+
+      record.operator = primaryVendor;
+      record.operatorConfidence = confidence;
+      record.operatorEvidence = `Matched to ${matches.length} vehicle(s) within ${Math.round(matches[0].distance)}m. ${matchedVendors.length > 1 ? `Secondary vendor (${matchedVendors[1]}) also nearby.` : ""}`;
+      record.matched_vehicles = matches.slice(0, 5).map(m => ({
+        id: m.vehicle.id,
+        company: m.vehicle.company,
+        distance_meters: Math.round(m.distance),
+        type: m.vehicle.type,
+        battery: m.vehicle.battery
+      }));
+    }
+
+    if (pileupMatch) {
+      record.pileup_related = true;
+      record.nearby_pileup = {
+        id: pileupMatch.id,
+        distance_meters: Math.round(distanceMeters(record, pileupMatch)),
+        vehicle_count: pileupMatch.vehicles.length,
+        companies: pileupMatch.companies
+      };
+    }
+  });
+
+  return records;
 }
 
 async function hydrateOperationalSources() {
@@ -3882,7 +3933,6 @@ document.addEventListener('pileupSelected', (event) => {
 });
 
 Promise.all([
-  hydrateOperationalSources(),
   hydrateVehiclePositions(),
   hydrateSlaEvidence(),
   hydrateHistorical311(),
@@ -3893,7 +3943,7 @@ Promise.all([
   hydratePolicyBoundaries(),
   hydratePileupDashboard(),
   hydrateSiteMetrics()
-]).then(initializeDurableMode).finally(() => {
+]).then(() => hydrateOperationalSources()).then(initializeDurableMode).finally(() => {
   renderDurableMode();
   renderAll();
   document.documentElement.dataset.appReady = "true";
