@@ -2039,6 +2039,45 @@ function renderDetail() {
       }, 100);
     }
   });
+
+  const evidenceDraftKey = `evidence_draft_${issue.id}`;
+  const savedEvidenceDraft = JSON.parse(localStorage.getItem(evidenceDraftKey) || "{}");
+  const crossRefUrlInput = document.getElementById("crossReferenceUrlInput");
+  const crossRefPhotoUrlsInput = document.getElementById("crossReferencePhotoUrlsInput");
+  const crossRefSummaryInput = document.getElementById("crossReferenceSummaryInput");
+  const crossRefStatusInput = document.getElementById("crossReferenceStatusInput");
+  const crossRefOperatorInput = document.getElementById("crossReferenceOperatorInput");
+  const crossRefConfidenceInput = document.getElementById("crossReferenceConfidenceInput");
+  const accessibilityEvidenceInput = document.getElementById("accessibilityEvidenceInput");
+
+  if (savedEvidenceDraft.url) crossRefUrlInput.value = savedEvidenceDraft.url;
+  if (savedEvidenceDraft.photoUrls) crossRefPhotoUrlsInput.value = savedEvidenceDraft.photoUrls;
+  if (savedEvidenceDraft.summary) crossRefSummaryInput.value = savedEvidenceDraft.summary;
+  if (savedEvidenceDraft.status) crossRefStatusInput.value = savedEvidenceDraft.status;
+  if (savedEvidenceDraft.operator) crossRefOperatorInput.value = savedEvidenceDraft.operator;
+  if (savedEvidenceDraft.confidence) crossRefConfidenceInput.value = savedEvidenceDraft.confidence;
+  if (savedEvidenceDraft.accessibility) accessibilityEvidenceInput.value = savedEvidenceDraft.accessibility;
+
+  const saveEvidenceDraft = () => {
+    localStorage.setItem(evidenceDraftKey, JSON.stringify({
+      url: crossRefUrlInput.value,
+      photoUrls: crossRefPhotoUrlsInput.value,
+      summary: crossRefSummaryInput.value,
+      status: crossRefStatusInput.value,
+      operator: crossRefOperatorInput.value,
+      confidence: crossRefConfidenceInput.value,
+      accessibility: accessibilityEvidenceInput.value
+    }));
+  };
+
+  crossRefUrlInput?.addEventListener("blur", saveEvidenceDraft);
+  crossRefPhotoUrlsInput?.addEventListener("blur", saveEvidenceDraft);
+  crossRefSummaryInput?.addEventListener("blur", saveEvidenceDraft);
+  crossRefStatusInput?.addEventListener("change", saveEvidenceDraft);
+  crossRefOperatorInput?.addEventListener("change", saveEvidenceDraft);
+  crossRefConfidenceInput?.addEventListener("change", saveEvidenceDraft);
+  accessibilityEvidenceInput?.addEventListener("change", saveEvidenceDraft);
+
   document.getElementById("evidenceReviewForm").addEventListener("submit", event => {
     event.preventDefault();
     if (!requireRole("admin", "record verified source evidence")) return;
@@ -2101,6 +2140,7 @@ function renderDetail() {
         photo_count: photoUrls.length,
       });
     }
+    localStorage.removeItem(evidenceDraftKey);
     showNotice(`${issue.id} OneView evidence saved without changing its local lifecycle status.`, "success");
   });
   panel.querySelectorAll(".linked-photo img").forEach(image => {
@@ -2112,6 +2152,27 @@ function renderDetail() {
       link.querySelector("span").textContent = "Open photograph";
     }, { once: true });
   });
+
+  const accessibilityDraftKey = `accessibility_draft_${issue.id}`;
+  const savedAccessibilityDraft = JSON.parse(localStorage.getItem(accessibilityDraftKey) || "{}");
+  const challengeStatusInput = document.getElementById("accessibilityChallengeStatusInput");
+  const challengeNoteInput = document.getElementById("accessibilityChallengeNoteInput");
+
+  if (challengeStatusInput && savedAccessibilityDraft.status) challengeStatusInput.value = savedAccessibilityDraft.status;
+  if (challengeNoteInput && savedAccessibilityDraft.note) challengeNoteInput.value = savedAccessibilityDraft.note;
+
+  const saveAccessibilityDraft = () => {
+    if (challengeStatusInput && challengeNoteInput) {
+      localStorage.setItem(accessibilityDraftKey, JSON.stringify({
+        status: challengeStatusInput.value,
+        note: challengeNoteInput.value
+      }));
+    }
+  };
+
+  challengeStatusInput?.addEventListener("change", saveAccessibilityDraft);
+  challengeNoteInput?.addEventListener("blur", saveAccessibilityDraft);
+
   document.getElementById("accessibilityChallengeForm")?.addEventListener("submit", event => {
     event.preventDefault();
     if (!requireRole("operator", "record an accessibility evidence challenge")) return;
@@ -2141,8 +2202,31 @@ function renderDetail() {
         has_evidence_note: Boolean(challengeNote),
       });
     }
+    localStorage.removeItem(accessibilityDraftKey);
     showNotice(`${issue.id} review status saved. No waiver, dismissal, SLA pause, or lifecycle change is implied.`, "success");
   });
+  const draftKey = `draft_${issue.id}`;
+  const savedDraft = JSON.parse(localStorage.getItem(draftKey) || "{}");
+  const teamInput = document.getElementById("teamInput");
+  const statusInput = document.getElementById("statusInput");
+  const notesInput = document.getElementById("notesInput");
+
+  if (savedDraft.team) teamInput.value = savedDraft.team;
+  if (savedDraft.status) statusInput.value = savedDraft.status;
+  if (savedDraft.notes) notesInput.value = savedDraft.notes;
+
+  const saveDraft = () => {
+    localStorage.setItem(draftKey, JSON.stringify({
+      team: teamInput.value,
+      status: statusInput.value,
+      notes: notesInput.value
+    }));
+  };
+
+  teamInput?.addEventListener("change", saveDraft);
+  statusInput?.addEventListener("change", saveDraft);
+  notesInput?.addEventListener("blur", saveDraft);
+
   document.getElementById("issueUpdateForm").addEventListener("submit", event => {
     event.preventDefault();
     if (!requireRole("operator", "update a request")) return;
@@ -2168,6 +2252,7 @@ function renderDetail() {
         });
       }
     }
+    localStorage.removeItem(draftKey);
     saveState();
     renderAll();
   });
