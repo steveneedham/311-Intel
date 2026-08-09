@@ -6,6 +6,13 @@ privacy-safe historical trends, official service-level thresholds, and dated
 event context so operators can prioritize work without overstating what the
 available data proves.
 
+## System Architecture
+
+**[View Data Flow Diagram →](311-INTEL-DATAFLOW.html)** — Interactive visualization
+showing data ingestion (GBFS, 311 service, historical archive), analysis layers
+(clustering, hotspot detection, trend analysis), operational dashboards, and
+stakeholder feedback loops.
+
 ## What is verified
 
 - The current City of Columbus 30-day public feed contributes 137 deduplicated
