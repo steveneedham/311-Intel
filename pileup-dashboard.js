@@ -115,6 +115,7 @@ export class PileupDashboard {
       // Handle coordinate link clicks separately
       if (coordinateLink) {
         coordinateLink.addEventListener('click', (e) => {
+          e.preventDefault();
           e.stopPropagation();
           const lat = parseFloat(coordinateLink.dataset.lat);
           const lng = parseFloat(coordinateLink.dataset.lng);
@@ -132,9 +133,12 @@ export class PileupDashboard {
       }
 
       // Handle pileup item clicks to navigate to pileup
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        if (e.target === coordinateLink) return; // Don't double-handle coordinate clicks
         const pileupId = item.dataset.pileupId;
-        this.navigateToPileup(pileupId);
+        if (pileupId && this.pileupData?.all_pileups) {
+          this.navigateToPileup(pileupId);
+        }
       });
     });
   }
