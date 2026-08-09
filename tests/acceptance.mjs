@@ -94,11 +94,11 @@ try {
     return city?.updatedAt?.toISOString() === new Date(fetchedAt).toISOString()
       && city.detail.includes(String(recordCount));
   }, { fetchedAt: cityFeed.fetched_at, recordCount: cityFeed.records.length }), "City 311 remains a separately timestamped feed");
-  await page.waitForFunction(() => document.querySelectorAll("#dataFeedUpdateList .data-feed-update").length === 13);
+  await page.waitForFunction(() => document.querySelectorAll("#dataFeedUpdateList .data-feed-update").length === 14);
   check(
-    await page.locator("#dataFeedUpdateList .data-feed-update").count() === 13
+    await page.locator("#dataFeedUpdateList .data-feed-update").count() === 14
       && await page.locator("#dataFeedUpdateList").textContent().then(text =>
-        ["Base44 complaint snapshot", "City of Columbus 311", "GBFS vehicle positions", "External event schedule", "Mobility policy boundaries", "Daily 311 forecast", "Populus operations"]
+        ["Base44 complaint snapshot", "City of Columbus 311", "GBFS vehicle positions", "Vehicle pileup analysis", "External event schedule", "Mobility policy boundaries", "Daily 311 forecast", "Populus operations"]
           .every(label => text.includes(label))
       ),
     "expanded status includes every application data feed"
