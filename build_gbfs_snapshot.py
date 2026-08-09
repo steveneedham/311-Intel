@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build deployable GBFS position and watch-history JSON from archived CSVs."""
+"""Build deployable GBFS position and watch-history JSON from columbus-micromobility-data snapshots."""
 
 import argparse
 import csv
@@ -7,14 +7,20 @@ import json
 import math
 import os
 import re
+import tempfile
+from io import StringIO
 from pathlib import Path
+from urllib.request import Request, urlopen
 
 
 DEFAULT_SNAPSHOT_ROOT = Path(
     os.environ.get(
         "GBFS_SNAPSHOT_ROOT",
-        Path(__file__).resolve().parent / "snapshots"
+        "https://raw.githubusercontent.com/steveneedham/columbus-micromobility-data/main/snapshots",
     )
+)
+REMOTE_SNAPSHOT_BASE_URL = (
+    "https://raw.githubusercontent.com/steveneedham/columbus-micromobility-data/main/snapshots"
 )
 SNAPSHOT_PATTERN = "*/snapshots/columbus_scooters_*.csv"
 SNAPSHOT_ID_PATTERN = re.compile(r"^columbus_scooters_(\d{8}T\d{6}Z)$")
@@ -31,20 +37,20 @@ def parse_args():
     project_root = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(
         description=(
-            "Normalize the newest archived GBFS CSV and rebuild the complete "
-            "Goodale/Olentangy watch history."
+            "Normalize the newest archived GBFS CSV from columbus-micromobility-data "
+            "and rebuild the complete Goodale/Olentangy watch history."
         )
     )
     parser.add_argument(
         "--snapshot-root",
-        type=Path,
+        type=str,
         default=DEFAULT_SNAPSHOT_ROOT,
-        help="Root containing timestamped snapshot directories.",
+        help="Remote URL or local path containing timestamped snapshot directories.",
     )
     parser.add_argument(
         "--source",
-        type=Path,
-        help="Specific CSV for the current vehicle-position payload; defaults to newest.",
+        type=str,
+        help="Specific CSV URL or path for the current vehicle-position payload; defaults to newest.",
     )
     parser.add_argument(
         "--output",
@@ -66,7 +72,44 @@ def snapshot_id(path):
     return match.group(1)
 
 
+def fetch_remote_file(url):
+    """Fetch a file from a remote URL and return its content as a string."""
+    request = Request(url, headers={"User-Agent": "311-Intel/1.0 gbfs-snapshot-builder"})
+    with urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8")
+
+
+def list_remote_snapshots(base_url):
+    """List available CSV snapshots from remote GitHub directory."""
+    api_url = (
+        base_url.replace(
+            "https://raw.githubusercontent.com/",
+            "https://api.github.com/repos/",
+        )
+        .replace("/main/", "/contents/")
+    )
+    request = Request(
+        api_url, headers={"User-Agent": "311-Intel/1.0 gbfs-snapshot-builder"}
+    )
+    with urlopen(request, timeout=30) as response:
+        data = json.load(response)
+    snapshots = []
+    for item in data:
+        if item["name"].endswith(".csv") and item["name"].startswith("columbus_scooters_"):
+            snapshots.append(
+                {
+                    "name": item["name"],
+                    "url": item["download_url"],
+                    "id": snapshot_id(Path(item["name"])),
+                }
+            )
+    return sorted(snapshots, key=lambda x: x["id"])
+
+
 def find_snapshots(root):
+    if isinstance(root, str) and root.startswith("http"):
+        return list_remote_snapshots(root)
+    root = Path(root) if isinstance(root, str) else root
     if not root.is_dir():
         raise FileNotFoundError(f"Snapshot root does not exist: {root}")
     snapshots = sorted(root.glob(SNAPSHOT_PATTERN), key=snapshot_id)
@@ -90,50 +133,64 @@ def distance_meters(latitude, longitude, watch):
     )
 
 
-def read_positions(path):
+def read_positions(source):
+    """Read positions from a file path or remote URL."""
     positions = []
     invalid_rows = 0
-    with path.open(newline="", encoding="utf-8-sig") as source:
-        reader = csv.DictReader(source)
-        required = {
-            "Vehicle_ID",
-            "Company",
-            "Type",
-            "Latitude",
-            "Longitude",
-            "Battery_Pct",
-            "Range_Miles",
-            "Is_Available",
-            "Is_Disabled",
-            "Is_Reserved",
-        }
-        missing = required.difference(reader.fieldnames or [])
-        if missing:
-            raise ValueError(
-                f"{path.name} is missing columns: {', '.join(sorted(missing))}"
+    if isinstance(source, dict) and "url" in source:
+        csv_content = fetch_remote_file(source["url"])
+        csv_file = StringIO(csv_content)
+        filename = source.get("name", "remote_snapshot.csv")
+    elif isinstance(source, str) and source.startswith("http"):
+        csv_content = fetch_remote_file(source)
+        csv_file = StringIO(csv_content)
+        filename = source.split("/")[-1]
+    else:
+        path = Path(source) if isinstance(source, str) else source
+        with path.open(newline="", encoding="utf-8-sig") as f:
+            csv_content = f.read()
+        csv_file = StringIO(csv_content)
+        filename = path.name
+    reader = csv.DictReader(csv_file)
+    required = {
+        "Vehicle_ID",
+        "Company",
+        "Type",
+        "Latitude",
+        "Longitude",
+        "Battery_Pct",
+        "Range_Miles",
+        "Is_Available",
+        "Is_Disabled",
+        "Is_Reserved",
+    }
+    missing = required.difference(reader.fieldnames or [])
+    if missing:
+        raise ValueError(
+            f"{filename} is missing columns: {', '.join(sorted(missing))}"
+        )
+    for row in reader:
+        try:
+            latitude = float(row["Latitude"])
+            longitude = float(row["Longitude"])
+            if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+                raise ValueError
+            positions.append(
+                {
+                    "id": row["Vehicle_ID"],
+                    "company": row["Company"],
+                    "type": row["Type"],
+                    "lat": round(latitude, 6),
+                    "lng": round(longitude, 6),
+                    "battery": int(float(row["Battery_Pct"] or 0)),
+                    "range": round(float(row["Range_Miles"] or 0), 1),
+                    "available": row["Is_Available"].lower() == "true",
+                    "disabled": row["Is_Disabled"].lower() == "true",
+                    "reserved": row["Is_Reserved"].lower() == "true",
+                }
             )
-        for row in reader:
-            try:
-                latitude = float(row["Latitude"])
-                longitude = float(row["Longitude"])
-                if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-                    raise ValueError
-                positions.append(
-                    {
-                        "id": row["Vehicle_ID"],
-                        "company": row["Company"],
-                        "type": row["Type"],
-                        "lat": round(latitude, 6),
-                        "lng": round(longitude, 6),
-                        "battery": int(float(row["Battery_Pct"] or 0)),
-                        "range": round(float(row["Range_Miles"] or 0), 1),
-                        "available": row["Is_Available"].lower() == "true",
-                        "disabled": row["Is_Disabled"].lower() == "true",
-                        "reserved": row["Is_Reserved"].lower() == "true",
-                    }
-                )
-            except (KeyError, TypeError, ValueError):
-                invalid_rows += 1
+        except (KeyError, TypeError, ValueError):
+            invalid_rows += 1
     return positions, invalid_rows
 
 
@@ -147,19 +204,25 @@ def write_json(path, payload):
 
 def build(snapshot_root, source, output, history_output):
     snapshots = find_snapshots(snapshot_root)
-    current_source = source or snapshots[-1]
-    if current_source not in snapshots:
-        snapshot_id(current_source)
-        if not current_source.is_file():
-            raise FileNotFoundError(f"Source CSV does not exist: {current_source}")
-
+    if not snapshots:
+        raise ValueError("No snapshots found")
+    if source:
+        current_source = source
+    else:
+        current_source = snapshots[-1]
     vehicles, invalid_rows = read_positions(current_source)
-    current_id = snapshot_id(current_source)
+    if isinstance(current_source, dict):
+        current_id = current_source["id"]
+        source_name = current_source["name"]
+    else:
+        path = Path(current_source) if isinstance(current_source, str) else current_source
+        current_id = snapshot_id(path)
+        source_name = path.name
     write_json(
         output,
         {
             "snapshot_id": current_id,
-            "source_file": current_source.name,
+            "source_file": source_name,
             "position_count": len(vehicles),
             "invalid_row_count": invalid_rows,
             "vehicles": vehicles,
@@ -168,8 +231,8 @@ def build(snapshot_root, source, output, history_output):
 
     history = []
     total_invalid_rows = 0
-    for path in snapshots:
-        positions, rejected = read_positions(path)
+    for snapshot in snapshots:
+        positions, rejected = read_positions(snapshot)
         total_invalid_rows += rejected
         nearby = [
             vehicle
@@ -180,9 +243,13 @@ def build(snapshot_root, source, output, history_output):
         operators = {}
         for vehicle in nearby:
             operators[vehicle["company"]] = operators.get(vehicle["company"], 0) + 1
+        if isinstance(snapshot, dict):
+            snap_id = snapshot["id"]
+        else:
+            snap_id = snapshot_id(snapshot)
         history.append(
             {
-                "snapshot_id": snapshot_id(path),
+                "snapshot_id": snap_id,
                 "position_count": len(positions),
                 "invalid_row_count": rejected,
                 "watch_count": len(nearby),
@@ -210,9 +277,15 @@ def build(snapshot_root, source, output, history_output):
 
 def main():
     args = parse_args()
+    snapshot_root = args.snapshot_root
+    if not isinstance(snapshot_root, str) or not snapshot_root.startswith("http"):
+        snapshot_root = Path(snapshot_root).resolve()
+    source = args.source
+    if source and (not isinstance(source, str) or not source.startswith("http")):
+        source = Path(source).resolve()
     result = build(
-        args.snapshot_root.resolve(),
-        args.source.resolve() if args.source else None,
+        snapshot_root,
+        source,
         args.output.resolve(),
         args.history_output.resolve(),
     )
