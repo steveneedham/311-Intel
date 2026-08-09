@@ -33,15 +33,16 @@ jobs:
           python3 build_gbfs_snapshot.py
           python3 build_request_vehicle_traces.py
           python3 build_base44_forecast_input.py
+          python3 build_pileup_analysis.py
 
       - name: Commit and push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet gbfs-vehicle-positions.json gbfs-watch-history.json request-vehicle-traces.json base44-forecast-input.json; then
+          if git diff --quiet gbfs-vehicle-positions.json gbfs-watch-history.json request-vehicle-traces.json base44-forecast-input.json pileup-analysis.json; then
             echo "No changes to GBFS data"
           else
-            git add gbfs-vehicle-positions.json gbfs-watch-history.json request-vehicle-traces.json base44-forecast-input.json
+            git add gbfs-vehicle-positions.json gbfs-watch-history.json request-vehicle-traces.json base44-forecast-input.json pileup-analysis.json
             git commit -m "Refresh GBFS data and analysis from columbus-micromobility-data ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
             git push
           fi

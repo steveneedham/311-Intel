@@ -12,6 +12,7 @@
     "refresh:gbfs": "python3 build_gbfs_snapshot.py",
     "build:vehicle-traces": "python3 build_request_vehicle_traces.py",
     "build:base44-forecast-input": "python3 build_base44_forecast_input.py",
+    "build:pileup-analysis": "python3 build_pileup_analysis.py",
     "event:gbfs": "python3 event_gbfs_runner.py",
     "test": "node tests/acceptance.mjs && node tests/durable_acceptance.mjs && python3 -m unittest tests/test_build_base44_forecast_input.py tests/test_build_gbfs_snapshot.py tests/test_build_request_vehicle_traces.py tests/test_build_policy_boundary_analysis.py tests/test_columbus_311_feed.py tests/test_event_gbfs_runner.py tests/test_server.py"
   },
