@@ -110,6 +110,28 @@ export class PileupDashboard {
 
     // Add event listeners to pileup items
     pileupList.querySelectorAll('.pileup-item').forEach(item => {
+      const coordinateLink = item.querySelector('.coordinate-link');
+
+      // Handle coordinate link clicks separately
+      if (coordinateLink) {
+        coordinateLink.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const lat = parseFloat(coordinateLink.dataset.lat);
+          const lng = parseFloat(coordinateLink.dataset.lng);
+          const mapTab = document.querySelector('[data-view="map"]');
+          if (mapTab) {
+            mapTab.click();
+            setTimeout(() => {
+              const event = new CustomEvent('centerOnLocation', {
+                detail: { lat, lng }
+              });
+              document.dispatchEvent(event);
+            }, 100);
+          }
+        });
+      }
+
+      // Handle pileup item clicks to navigate to pileup
       item.addEventListener('click', () => {
         const pileupId = item.dataset.pileupId;
         this.navigateToPileup(pileupId);
@@ -118,38 +140,30 @@ export class PileupDashboard {
   }
 
   renderPileupItem(pileup) {
-    const status = pileup.active ? 'Active' : 'Resolved';
-    const statusClass = pileup.active ? 'active' : 'resolved';
+    const statusBadge = pileup.active ? 'ACTIVE' : 'REVIEW';
     const firstDetected = new Date(pileup.first_detected_at);
-    const lastSeen = pileup.active ? 'Now' : new Date(pileup.last_seen_at).toLocaleDateString();
-    const companies = (pileup.companies || []).join(' + ') || 'Unknown';
+    const lastSeen = pileup.active ? 'Now' : new Date(pileup.last_seen_at).toLocaleString();
+    const companies = (pileup.companies || []).join(', ') || 'Unknown';
+    const companyCount = (pileup.companies || []).length;
 
     return `
       <div class="pileup-item" data-pileup-id="${pileup.id}" role="button" tabindex="0">
-        <div class="pileup-header">
-          <div class="pileup-id">${pileup.id}</div>
-          <div class="pileup-status ${statusClass}">${status}</div>
-        </div>
-        <div class="pileup-details">
-          <div class="detail-row">
-            <span class="label">Vehicles:</span>
-            <span class="value">${pileup.vehicle_count || 0}</span>
+        <div style="border-left: 4px solid #a85628; padding: 12px; background: #f9f7f5;">
+          <div style="color: #a85628; font-weight: 600; font-size: 15px; margin-bottom: 4px;">${pileup.id}</div>
+          <div style="margin-bottom: 8px;">
+            <span style="font-weight: 600; font-size: 16px;">${pileup.vehicle_count || 0} vehicles</span>
+            <span style="color: #666;"> · ${companyCount} operator${companyCount !== 1 ? 's' : ''}</span>
           </div>
-          <div class="detail-row">
-            <span class="label">Operators:</span>
-            <span class="value">${companies}</span>
+          <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${companies}</div>
+          <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
+            <button class="coordinate-link" data-lat="${pileup.lat}" data-lng="${pileup.lng}" style="background: none; border: none; color: #0066cc; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 0; font-size: 14px;">
+              ${pileup.lat.toFixed(5)}, ${pileup.lng.toFixed(5)}
+            </button>
           </div>
-          <div class="detail-row">
-            <span class="label">First detected:</span>
-            <span class="value">${firstDetected.toLocaleDateString()} ${firstDetected.toLocaleTimeString()}</span>
+          <div style="display: inline-block; background: #e8d4c4; color: #a85628; padding: 4px 8px; border-radius: 3px; font-size: 12px; font-weight: 600; margin-bottom: 8px; margin-right: 8px;">${statusBadge}</div>
+          <div style="color: #666; font-size: 13px; line-height: 1.5;">
+            First observed ${firstDetected.toLocaleDateString()} ${firstDetected.toLocaleTimeString()} · Last observed ${lastSeen} · seen in ${pileup.snapshot_count || 0} snapshot${(pileup.snapshot_count || 0) !== 1 ? 's' : ''}
           </div>
-          <div class="detail-row">
-            <span class="label">Last seen:</span>
-            <span class="value">${lastSeen}</span>
-          </div>
-        </div>
-        <div class="pileup-footer">
-          <span class="hint">Click to show on map →</span>
         </div>
       </div>
     `;
