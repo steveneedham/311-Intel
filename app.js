@@ -1360,6 +1360,78 @@ function issueScore(issue) {
   return priority + recency + access;
 }
 
+function calculateInsightsTicker() {
+  const allRecords = [...state.issues, ...(historicalState.records || [])];
+  const now = new Date();
+  const isoWeek = getISOWeek(now);
+  const isoYear = now.getFullYear();
+
+  const currentWeekStart = getWeekStartDate(now);
+  const currentWeekEnd = new Date(currentWeekStart);
+  currentWeekEnd.setDate(currentWeekEnd.getDate() + 6);
+
+  const lastYearWeekStart = new Date(currentWeekStart);
+  lastYearWeekStart.setFullYear(lastYearWeekStart.getFullYear() - 1);
+  const lastYearWeekEnd = new Date(lastYearWeekStart);
+  lastYearWeekEnd.setDate(lastYearWeekEnd.getDate() + 6);
+
+  const thisYearCount = allRecords.filter(r => {
+    const d = new Date(r.reportedAt);
+    return d >= currentWeekStart && d <= currentWeekEnd;
+  }).length;
+
+  const lastYearCount = allRecords.filter(r => {
+    const d = new Date(r.reportedAt);
+    return d >= lastYearWeekStart && d <= lastYearWeekEnd;
+  }).length;
+
+  const prevWeekStart = new Date(currentWeekStart);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekEnd = new Date(prevWeekStart);
+  prevWeekEnd.setDate(prevWeekEnd.getDate() + 6);
+
+  const prevWeekCount = allRecords.filter(r => {
+    const d = new Date(r.reportedAt);
+    return d >= prevWeekStart && d <= prevWeekEnd;
+  }).length;
+
+  const wowChange = prevWeekCount > 0 ? ((thisYearCount - prevWeekCount) / prevWeekCount * 100).toFixed(0) : 0;
+  const yoyChange = lastYearCount > 0 ? ((thisYearCount - lastYearCount) / lastYearCount * 100).toFixed(0) : 0;
+
+  const currentPileups = vehicleState.pileups?.length || 0;
+  const operatorsInvolved = [...new Set(state.issues.filter(i => i.operator !== "unknown").map(i => i.operator))].length;
+
+  return {
+    isoWeek,
+    isoYear,
+    currentWeekStart: currentWeekStart.toLocaleDateString(),
+    currentWeekEnd: currentWeekEnd.toLocaleDateString(),
+    thisYearCount,
+    lastYearCount,
+    yoyChange,
+    prevWeekCount,
+    thisWeekCount: thisYearCount,
+    wowChange,
+    pileups: currentPileups,
+    operatorsIdentified: operatorsInvolved
+  };
+}
+
+function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function getWeekStartDate(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.setDate(diff));
+}
+
 function renderMetrics() {
   const unresolved = openIssues();
   const critical = unresolved.filter(issue => issue.priority === "critical").length;
@@ -1381,6 +1453,26 @@ function renderMetrics() {
     node.querySelector(".metric-note").textContent = note;
     container.appendChild(node);
   });
+  renderInsightsTicker();
+}
+
+function renderInsightsTicker() {
+  const insights = calculateInsightsTicker();
+  let tickerHtml = `<div style="padding: 12px 16px; background: #e8f4f8; border-left: 4px solid #075d8d; margin-top: 16px; font-size: 14px; line-height: 1.6;">
+    <p style="margin: 0 0 8px 0; font-weight: 600; color: #075d8d;">📊 Year-over-year trends</p>
+    <p style="margin: 0 0 4px 0;"><strong>ISO week ${insights.isoWeek} (${insights.currentWeekStart}–${insights.currentWeekEnd}):</strong> 2026 has ${insights.thisYearCount} loaded requests vs. ${insights.lastYearCount} in 2025 · <strong style="color: ${insights.yoyChange > 0 ? '#c41e3a' : '#2d5016'};">+${insights.yoyChange}%</strong></p>
+    <p style="margin: 0 0 4px 0;"><strong>Week-over-week:</strong> ${insights.thisWeekCount} requests vs. ${insights.prevWeekCount} last week · <strong style="color: ${insights.wowChange > 0 ? '#c41e3a' : '#2d5016'};">+${insights.wowChange}%</strong></p>
+    <p style="margin: 0;"><strong>Flags:</strong> ${insights.pileups} cross-vendor pile-ups · ${insights.operatorsIdentified} operator${insights.operatorsIdentified === 1 ? '' : 's'} identified in open requests</p>
+  </div>`;
+  const container = document.getElementById("metrics");
+  if (container) {
+    const existingTicker = container.querySelector('[data-insights-ticker]');
+    if (existingTicker) {
+      existingTicker.outerHTML = `<div data-insights-ticker>${tickerHtml}</div>`;
+    } else {
+      container.insertAdjacentHTML('afterend', `<div data-insights-ticker>${tickerHtml}</div>`);
+    }
+  }
 }
 
 function sectionViewCounts() {
@@ -1922,7 +2014,7 @@ function renderDetail() {
           ${issue.matched_vehicles.map((v, idx) => `
             <div style="margin-bottom: ${idx < issue.matched_vehicles.length - 1 ? "8px" : "0"}; padding: 8px; background: #f5f5f5; border-left: 3px solid #0066cc;">
               <strong>${escapeHtml(v.company || "Unknown")}</strong> · ${v.distance_meters.toFixed(0)}m away
-              <br><small style="color: #666;">Type: ${escapeHtml(v.type || "vehicle")} · Battery: ${v.battery || "N/A"}%</small>
+              <br><small style="color: #666;">Type: ${escapeHtml(v.type || "vehicle")} · ${v.company === "Veo" ? `Range: ${v.range || "N/A"} mi` : `Battery: ${v.battery || "N/A"}%`}</small>
             </div>
           `).join("")}
         </div>
@@ -3130,7 +3222,7 @@ function renderVehicleMap() {
   vehicles.forEach(vehicle => {
     const position = point(vehicle);
     context.beginPath();
-    context.arc(position.x, position.y, 2.2, 0, Math.PI * 2);
+    context.arc(position.x, position.y, 4, 0, Math.PI * 2);
     context.fillStyle = vehicle.company === "Veo" ? "rgba(0,139,139,.58)" : "rgba(232,111,63,.58)";
     context.fill();
   });
@@ -3269,7 +3361,7 @@ function renderOperationalMap() {
       const point = [vehicle.lat, vehicle.lng];
       L.circleMarker(point, {
         renderer,
-        radius: 2,
+        radius: 5,
         stroke: false,
         fillColor: vehicle.company === "Veo" ? "#008b8b" : "#e86f3f",
         fillOpacity: 0.48
