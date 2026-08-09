@@ -1,0 +1,47 @@
+name: Refresh GBFS Data
+
+on:
+  schedule:
+    # 8am and 8pm UTC (matches columbus-micromobility-data schedule)
+    - cron: '0 8,20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Clone columbus-micromobility-data snapshots
+        run: |
+          git clone --depth 1 https://github.com/steveneedham/columbus-micromobility-data.git /tmp/columbus-data
+
+      - name: Refresh GBFS data and analysis
+        env:
+          GBFS_SNAPSHOT_ROOT: /tmp/columbus-data/snapshots
+        run: |
+          python3 build_gbfs_snapshot.py
+          python3 build_request_vehicle_traces.py
+          python3 build_base44_forecast_input.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet gbfs-vehicle-positions.json gbfs-watch-history.json request-vehicle-traces.json base44-forecast-input.json; then
+            echo "No changes to GBFS data"
+          else
+            git add gbfs-vehicle-positions.json gbfs-watch-history.json request-vehicle-traces.json base44-forecast-input.json
+            git commit -m "Refresh GBFS data and analysis from columbus-micromobility-data ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+            git push
+          fi

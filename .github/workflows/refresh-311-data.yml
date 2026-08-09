@@ -1,0 +1,38 @@
+name: Refresh 311 Data
+
+on:
+  schedule:
+    # Every hour at :15 UTC
+    - cron: '15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Refresh 311 data from columbus-micromobility-data
+        run: python3 sync_columbus_311.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet columbus-311-current.json; then
+            echo "No changes to 311 data"
+          else
+            git add columbus-311-current.json
+            git commit -m "Refresh 311 data from columbus-micromobility-data ($(date -u +'%Y-%m-%dT%H:%M:%SZ'))"
+            git push
+          fi
