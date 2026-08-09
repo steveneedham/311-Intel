@@ -174,9 +174,14 @@ export class PileupDashboard {
   }
 
   navigateToPileup(pileupId) {
+    console.log('[PileupDashboard] navigateToPileup called with:', pileupId);
     const pileup = this.pileupData.all_pileups.find(p => p.id === pileupId);
-    if (!pileup) return;
+    if (!pileup) {
+      console.log('[PileupDashboard] pileup not found');
+      return;
+    }
 
+    console.log('[PileupDashboard] found pileup:', pileup.id);
     // Store the target pileup in app state
     this.appState.selectedPileup = {
       id: pileupId,
@@ -185,6 +190,7 @@ export class PileupDashboard {
       vehicleCount: pileup.vehicle_count,
       companies: pileup.companies,
     };
+    console.log('[PileupDashboard] appState.selectedPileup set:', this.appState.selectedPileup);
 
     // Navigate to map view
     const mapTab = document.querySelector('[data-view="map"]');

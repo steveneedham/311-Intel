@@ -128,6 +128,9 @@ const appState = {
   selectedPileup: null
 };
 
+// Expose appState to window for cross-component access
+window.appState = appState;
+
 let pileupDashboard = null;
 
 function loadState() {
@@ -3409,7 +3412,7 @@ function searchNearCurrentLocation() {
 }
 
 function renderPileups() {
-  const list = document.getElementById("pileupList");
+  const list = document.getElementById("watchList");
   document.getElementById("pileupCount").textContent = `${vehicleState.pileups.length} flags`;
   const eventAnalysis = watchEventAnalysis();
   const watchItems = vehicleWatchLocations.map(location => {
