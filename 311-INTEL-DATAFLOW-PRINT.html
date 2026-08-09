@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>311 Intel Data Flow - Printable</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: white;
+      color: #14171C;
+      line-height: 1.6;
+    }
+    @media print {
+      body { margin: 0; padding: 0; }
+      .page-break { page-break-after: always; }
+      a { text-decoration: none; }
+    }
+    .page {
+      max-width: 8.5in;
+      height: 11in;
+      margin: 0 auto;
+      padding: 0.5in;
+      background: white;
+      box-shadow: 0 0 1px #ccc;
+      overflow: hidden;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 0.3in;
+      border-bottom: 3px solid #E8A33D;
+      padding-bottom: 0.2in;
+    }
+    .header h1 {
+      font-size: 24pt;
+      margin-bottom: 0.1in;
+      color: #14171C;
+    }
+    .header p {
+      font-size: 11pt;
+      color: #666;
+    }
+    .section {
+      margin-bottom: 0.25in;
+    }
+    .section h2 {
+      font-size: 13pt;
+      font-weight: 600;
+      margin-bottom: 0.1in;
+      color: #14171C;
+      border-left: 3px solid #E8A33D;
+      padding-left: 0.1in;
+    }
+    .section h3 {
+      font-size: 11pt;
+      font-weight: 600;
+      margin-top: 0.1in;
+      margin-bottom: 0.05in;
+      color: #075d8d;
+    }
+    ul {
+      margin-left: 0.2in;
+      font-size: 10pt;
+      margin-bottom: 0.1in;
+    }
+    li {
+      margin-bottom: 0.05in;
+    }
+    .box {
+      border: 1px solid #ccc;
+      padding: 0.1in;
+      margin: 0.1in 0;
+      background: #f9f9f9;
+      font-size: 9pt;
+    }
+    .footer {
+      font-size: 8pt;
+      color: #999;
+      text-align: center;
+      margin-top: 0.2in;
+      padding-top: 0.1in;
+      border-top: 1px solid #ccc;
+    }
+    .feature-box {
+      border-left: 3px solid #4FD1C5;
+      padding-left: 0.1in;
+      margin: 0.05in 0;
+      font-size: 9pt;
+    }
+  </style>
+</head>
+<body>
+
+<!-- PAGE 1 -->
+<div class="page">
+  <div class="header">
+    <h1>311 Intel Data Flow</h1>
+    <p>Real-time operational intelligence for shared-mobility complaints and fleet positioning</p>
+  </div>
+
+  <div class="section">
+    <h2>Data Ingestion Layer</h2>
+    
+    <h3>GBFS Snapshots</h3>
+    <ul>
+      <li>Veo + Spin vehicle positions, battery status, vehicle type</li>
+      <li>~hourly refresh from bike-share providers</li>
+    </ul>
+
+    <h3>311 Service Feed</h3>
+    <ul>
+      <li>Columbus OneView complaints with location and metadata</li>
+      <li>Real-time feed of citizen-reported mobility issues</li>
+    </ul>
+
+    <h3>Historical Archive</h3>
+    <ul>
+      <li>1-year privacy-safe extract (no names, emails, free-text)</li>
+      <li>Enables trend analysis and pattern detection</li>
+    </ul>
+
+    <h3>Policy Boundaries</h3>
+    <ul>
+      <li>No-park and no-ride zones from City of Columbus</li>
+      <li>GeoJSON features for spatial violation detection</li>
+    </ul>
+
+    <h3>Forecasts & Events</h3>
+    <ul>
+      <li>Base44 demand predictions and venue calendars</li>
+      <li>Context for proactive intervention planning</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Analysis & Enrichment</h2>
+    <ul>
+      <li><strong>Vehicle Clustering:</strong> Cross-vendor pileup detection (~20m radius)</li>
+      <li><strong>Complaint Mapping:</strong> Geographic matching + operator attribution</li>
+      <li><strong>Hotspot Analysis:</strong> YoY & WoW trend comparisons by zone</li>
+      <li><strong>Policy Violation:</strong> Boundary crossing detection (25m, 50m, 100m)</li>
+      <li><strong>Forecast Integration:</strong> Demand signals for dispatch planning</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    311 Intel System Documentation — August 2026
+  </div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page page-break">
+  <div class="header">
+    <h1>Operational Dashboards & Outputs</h1>
+  </div>
+
+  <div class="section">
+    <h2>Unified Operational Center</h2>
+    
+    <h3>Operations Queue</h3>
+    <ul>
+      <li>Issue triage, team assignment, priority tracking</li>
+      <li>Filters: status, severity, zone, complaint type, operator</li>
+    </ul>
+
+    <h3>Map Intelligence</h3>
+    <ul>
+      <li>Geographic overlay of all signals</li>
+      <li>Requests, vehicles, watches, policies, interventions</li>
+    </ul>
+
+    <h3>Vehicle Positions</h3>
+    <ul>
+      <li>Fleet distribution with pileup cluster visualization</li>
+      <li>Range/battery status (Veo: range mi, Spin: battery %)</li>
+    </ul>
+
+    <h3>Hotspots & Trends</h3>
+    <ul>
+      <li>Zone-based pattern analysis with YoY/WoW metrics</li>
+      <li>Historical repeat locations and forecast integration</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Stakeholder Actions</h2>
+    
+    <h3>City Operations</h3>
+    <ul>
+      <li>Enforcement priorities (data-driven recommendations)</li>
+      <li>Policy effectiveness analysis</li>
+    </ul>
+
+    <h3>Operator Response</h3>
+    <ul>
+      <li>Weekly rebalancing targets</li>
+      <li>SLA compliance gaps and pile-up resolution</li>
+    </ul>
+
+    <h3>Field Workforce</h3>
+    <ul>
+      <li>Real-time issue queue with zone assignments</li>
+      <li>Photo/evidence collection and action documentation</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    311 Intel System Documentation — August 2026
+  </div>
+</div>
+
+<!-- PAGE 3 -->
+<div class="page page-break">
+  <div class="header">
+    <h1>Recent Enhancements</h1>
+    <p>Issues #31, #32, #33 — Completed</p>
+  </div>
+
+  <div class="section">
+    <h2>Issue #31: Veo Range Display ✓</h2>
+    <div class="box">
+      <strong>Status:</strong> Implemented<br>
+      <strong>Change:</strong> Veo vehicles now display range (miles) instead of battery percentage<br>
+      <strong>Impact:</strong> Spin vehicles continue showing battery %, improving availability accuracy<br>
+      <strong>Files Modified:</strong> app.js (line 1925)
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Issue #32: Vehicle Dot Visibility ✓</h2>
+    <div class="box">
+      <strong>Status:</strong> Implemented<br>
+      <strong>Changes:</strong><br>
+      • Operational map: radius increased 2 → 5 pixels (line 3364)<br>
+      • Canvas view: radius increased 2.2 → 4 pixels (line 3133)<br>
+      <strong>Impact:</strong> Vehicle positions are now more visible and clickable<br>
+      <strong>Files Modified:</strong> app.js (2 locations)
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Issue #33: Insights Ticker ✓</h2>
+    <div class="box">
+      <strong>Status:</strong> Implemented<br>
+      <strong>Features:</strong><br>
+      • ISO week number with date range<br>
+      • Year-over-year (YoY) request comparison + % change<br>
+      • Week-over-week (WoW) trends<br>
+      • Current pileup count<br>
+      • Operator identification metrics<br>
+      <strong>Location:</strong> Operations dashboard below metrics<br>
+      <strong>Files Modified:</strong> app.js (calculateInsightsTicker, renderInsightsTicker functions)
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Technical Stack</h2>
+    <ul>
+      <li>Frontend: Responsive PWA (JavaScript, Canvas, Leaflet)</li>
+      <li>Data Sources: GBFS API, 311 OneView, Base44 forecasts</li>
+      <li>Analysis: Python scripts for traces, pileups, policy joins</li>
+      <li>Storage: IndexedDB (browser), optional SQLite</li>
+      <li>Deployment: GitHub Pages (static), optional Flask service</li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    311 Intel System Documentation — August 2026<br>
+    <strong>Print this page to PDF for offline reference</strong>
+  </div>
+</div>
+
+</body>
+</html>
