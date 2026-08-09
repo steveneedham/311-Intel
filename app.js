@@ -1936,7 +1936,7 @@ function renderDetail() {
         </div>
       </dd></div>
       ` : ""}
-      <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
+      <div><dt>Coordinates</dt><dd><button class="coordinate-link" data-lat="${issue.lat}" data-lng="${issue.lng}" style="background: none; border: none; color: #0066cc; text-decoration: underline; cursor: pointer; font-family: inherit; padding: 0;">${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</button></dd></div>
       ${issue.councilDistrict ? `<div><dt>Council district</dt><dd>${escapeHtml(issue.councilDistrict)}</dd></div>` : ""}
     </dl>
     ${renderLinkedPhotos(issue)}
@@ -2024,6 +2024,20 @@ function renderDetail() {
         copied ? "success" : "error"
       );
     });
+  });
+  document.querySelector(".coordinate-link")?.addEventListener("click", () => {
+    const lat = parseFloat(document.querySelector(".coordinate-link").dataset.lat);
+    const lng = parseFloat(document.querySelector(".coordinate-link").dataset.lng);
+    const mapTab = document.querySelector('[data-view="map"]');
+    if (mapTab) {
+      mapTab.click();
+      setTimeout(() => {
+        const event = new CustomEvent('centerOnLocation', {
+          detail: { lat, lng }
+        });
+        document.dispatchEvent(event);
+      }, 100);
+    }
   });
   document.getElementById("evidenceReviewForm").addEventListener("submit", event => {
     event.preventDefault();
@@ -3972,6 +3986,14 @@ document.addEventListener('pileupSelected', (event) => {
   initOperationalMap();
   if (operationalMap) {
     operationalMap.setView([lat, lng], 15);
+  }
+});
+
+document.addEventListener('centerOnLocation', (event) => {
+  const { lat, lng } = event.detail;
+  initOperationalMap();
+  if (operationalMap) {
+    operationalMap.setView([lat, lng], 16);
   }
 });
 
