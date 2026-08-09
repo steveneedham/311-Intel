@@ -504,6 +504,18 @@ function normalizedPriority(record) {
   return "standard";
 }
 
+function priorityWithConfidenceAdjustment(issue) {
+  const basePriority = issue.priority || "standard";
+  const priorityRank = { critical: 3, high: 2, standard: 1 };
+  let adjustedRank = priorityRank[basePriority] || 1;
+
+  if (issue.pileup_related) adjustedRank = Math.min(adjustedRank + 1, 3);
+  if (issue.operatorConfidence === "vehicle-proximity-match" && issue.operator !== "unknown") adjustedRank = Math.min(adjustedRank + 0.5, 3);
+
+  const rankMap = { 3: "critical", 2: "high", 1: "standard" };
+  return rankMap[Math.min(Math.ceil(adjustedRank), 3)];
+}
+
 function sourceNarrative(record) {
   const description = String(record.description || "").trim();
   if (description) return description;
@@ -1580,15 +1592,23 @@ function renderQueue() {
   const issues = filteredIssues();
   document.getElementById("resultCount").textContent = `${issues.length} ${issues.length === 1 ? "request" : "requests"}`;
   const rows = document.getElementById("issueRows");
-  rows.innerHTML = issues.length ? issues.map(issue => `
-    <tr data-id="${escapeHtml(issue.id)}" class="${selectedIssueId === issue.id ? "selected" : ""}" tabindex="0">
-      <td><span class="badge badge-${issue.priority}">${label(issue.priority)}</span></td>
-      <td><span class="case-title">${escapeHtml(issue.type)}</span><span class="case-meta">${escapeHtml(issue.id)} · ${escapeHtml(issue.address)}</span></td>
+  rows.innerHTML = issues.length ? issues.map(issue => {
+    const adjustedPriority = priorityWithConfidenceAdjustment(issue);
+    return `
+    <tr data-id="${escapeHtml(issue.id)}" class="${selectedIssueId === issue.id ? "selected" : ""}${issue.pileup_related ? " pileup-alert" : ""}" tabindex="0">
+      <td><span class="badge badge-${adjustedPriority}" title="${issue.operatorConfidence === "vehicle-proximity-match" || issue.pileup_related ? "Priority adjusted based on vehicle match confidence and pileup detection" : ""}">${label(adjustedPriority)}${adjustedPriority !== issue.priority ? " ⬆️" : ""}</span></td>
+      <td>
+        <span class="case-title">${escapeHtml(issue.type)}</span>
+        ${issue.pileup_related ? `<span class="badge badge-warning" style="margin-left: 4px; background: #ff9800; color: white;">⚠️ Pileup</span>` : ""}
+        <span class="case-meta">${escapeHtml(issue.id)} · ${escapeHtml(issue.address)}</span>
+        ${issue.matched_vehicles && issue.matched_vehicles.length > 0 ? `<span class="case-meta" style="color: #0066cc;">${issue.matched_vehicles.length} nearby vehicle${issue.matched_vehicles.length > 1 ? "s" : ""}</span>` : ""}
+      </td>
       <td>${escapeHtml(issue.operator || "unknown")}</td>
       <td>${escapeHtml(issue.zone)}</td>
       <td>${ageLabel(issue.reportedAt)}</td>
       <td><span class="badge badge-${issue.status}">${label(issue.status)}</span></td>
-    </tr>`).join("") : `<tr><td colspan="6">No requests match these filters.</td></tr>`;
+    </tr>`;
+  }).join("") : `<tr><td colspan="6">No requests match these filters.</td></tr>`;
 
   rows.querySelectorAll("tr[data-id]").forEach(row => {
     const select = () => {
@@ -1893,6 +1913,29 @@ function renderDetail() {
       <div><dt>Operator</dt><dd>${escapeHtml(issue.operator)}</dd></div>
       <div><dt>Attribution</dt><dd>${escapeHtml(label(issue.operatorConfidence || "unattributed"))}</dd></div>
       <div><dt>Attribution evidence</dt><dd>${escapeHtml(issue.operatorEvidence || "No operator evidence is available.")}</dd></div>
+      ${issue.matched_vehicles && issue.matched_vehicles.length > 0 ? `
+      <div><dt>Nearby vehicles</dt><dd>
+        <div class="matched-vehicles-list" style="margin-top: 8px;">
+          ${issue.matched_vehicles.map((v, idx) => `
+            <div style="margin-bottom: ${idx < issue.matched_vehicles.length - 1 ? "8px" : "0"}; padding: 8px; background: #f5f5f5; border-left: 3px solid #0066cc;">
+              <strong>${escapeHtml(v.company || "Unknown")}</strong> · ${v.distance_meters.toFixed(0)}m away
+              <br><small style="color: #666;">Type: ${escapeHtml(v.type || "vehicle")} · Battery: ${v.battery || "N/A"}%</small>
+            </div>
+          `).join("")}
+        </div>
+      </dd></div>
+      ` : ""}
+      ${issue.pileup_related && issue.nearby_pileup ? `
+      <div><dt>Pileup alert</dt><dd>
+        <div class="pileup-info" style="padding: 8px; background: #fff3cd; border-left: 3px solid #ff9800;">
+          <strong>⚠️ Detected pileup nearby</strong>
+          <br>ID: ${escapeHtml(issue.nearby_pileup.id || "unknown")}
+          <br>Distance: ${issue.nearby_pileup.distance_meters?.toFixed(0) || "N/A"}m
+          <br>Vehicle count: ${issue.nearby_pileup.vehicle_count || "N/A"}
+          <br>Operators: ${escapeHtml((issue.nearby_pileup.companies || []).join(", ") || "Unknown")}
+        </div>
+      </dd></div>
+      ` : ""}
       <div><dt>Coordinates</dt><dd>${issue.lat.toFixed(4)}, ${issue.lng.toFixed(4)}</dd></div>
       ${issue.councilDistrict ? `<div><dt>Council district</dt><dd>${escapeHtml(issue.councilDistrict)}</dd></div>` : ""}
     </dl>
