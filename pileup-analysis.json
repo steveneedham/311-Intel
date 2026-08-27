@@ -1,578 +1,816 @@
 {
-  "fetched_at": "2026-08-26T22:54:52.415109Z",
+  "fetched_at": "2026-08-27T18:59:27.186478Z",
   "source": {
     "name": "Columbus Micromobility Data \u2014 Vehicle Pileups",
     "data_url": "https://raw.githubusercontent.com/steveneedham/columbus-micromobility-data/main/data-pileup-history.json",
     "mode": "read-only"
   },
   "summary": {
-    "total_pileups_detected": 556,
-    "active_pileup_count": 40,
-    "total_vehicles_in_pileups": 3186,
-    "avg_vehicles_per_pileup": 5.7,
+    "total_pileups_detected": 561,
+    "active_pileup_count": 57,
+    "total_vehicles_in_pileups": 3144,
+    "avg_vehicles_per_pileup": 5.6,
     "companies_involved": {
-      "Spin": 556,
-      "Veo": 556
+      "Spin": 561,
+      "Veo": 561
     }
   },
   "active_pileups": [
     {
       "id": "PILEUP-0008",
-      "lat": 39.994046188405804,
-      "lng": -83.00679333115943,
-      "vehicle_count": 23,
+      "lat": 39.99405858787879,
+      "lng": -83.00685066136363,
+      "vehicle_count": 22,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 97,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 100,
       "active": true
     },
     {
-      "id": "PILEUP-0010",
-      "lat": 40.00345145,
-      "lng": -83.01573995000001,
+      "id": "PILEUP-0011",
+      "lat": 40.004153525,
+      "lng": -83.01623090000001,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 4,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 2,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0018",
+      "lat": 39.99930155185185,
+      "lng": -83.02148927777779,
+      "vehicle_count": 9,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-02-26T18:31:58+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 81,
       "active": true
     },
     {
       "id": "PILEUP-0023",
-      "lat": 40.003859647435895,
-      "lng": -83.0128946205128,
-      "vehicle_count": 26,
+      "lat": 40.003899927999996,
+      "lng": -83.01293857199998,
+      "vehicle_count": 25,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 76,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0034",
-      "lat": 39.998113361111116,
-      "lng": -83.00967394999999,
-      "vehicle_count": 6,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 69,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 79,
       "active": true
     },
     {
       "id": "PILEUP-0037",
-      "lat": 39.94050318666667,
-      "lng": -82.98349664666668,
+      "lat": 39.94050764666666,
+      "lng": -82.98350632666666,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 28,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 31,
       "active": true
     },
     {
-      "id": "PILEUP-0043",
-      "lat": 40.000158648148144,
-      "lng": -83.02144889814814,
-      "vehicle_count": 18,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-02-27T05:20:51+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 30,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0052",
-      "lat": 39.993549692307695,
-      "lng": -82.98111892307693,
-      "vehicle_count": 13,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 104,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0054",
-      "lat": 39.99554252666667,
-      "lng": -83.01475982000001,
-      "vehicle_count": 5,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 42,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0058",
-      "lat": 39.97093400000001,
-      "lng": -82.97933787499998,
-      "vehicle_count": 8,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 16,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0066",
-      "lat": 39.95746871984127,
-      "lng": -83.0114219190476,
-      "vehicle_count": 21,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 113,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0074",
-      "lat": 39.960277852380955,
-      "lng": -82.9868729095238,
-      "vehicle_count": 7,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 29,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0138",
-      "lat": 39.96323716333333,
-      "lng": -82.98137949444444,
-      "vehicle_count": 15,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-07-08T04:33:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 78,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0147",
-      "lat": 39.9948618,
-      "lng": -83.00710609583334,
-      "vehicle_count": 8,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-07-09T12:36:44+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 15,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0189",
-      "lat": 39.99741163333333,
-      "lng": -83.00759658333334,
+      "id": "PILEUP-0049",
+      "lat": 39.99840363333334,
+      "lng": -83.0153205,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-07-16T09:13:17+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 63,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
       "active": true
     },
     {
-      "id": "PILEUP-0195",
-      "lat": 39.97216672727273,
-      "lng": -83.00263318181818,
-      "vehicle_count": 11,
+      "id": "PILEUP-0050",
+      "lat": 40.00031266875,
+      "lng": -83.01802974375002,
+      "vehicle_count": 24,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-07-20T09:56:34+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 99,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 53,
       "active": true
     },
     {
-      "id": "PILEUP-0200",
-      "lat": 39.965146747619045,
-      "lng": -82.99037441904763,
-      "vehicle_count": 7,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-07-20T09:56:34+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 36,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0227",
-      "lat": 39.96738734722223,
-      "lng": -83.01564086666667,
+      "id": "PILEUP-0052",
+      "lat": 39.993568749999994,
+      "lng": -82.98109275,
       "vehicle_count": 12,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-07-24T01:04:04+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 40,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 107,
       "active": true
     },
     {
-      "id": "PILEUP-0233",
-      "lat": 40.006177359999995,
-      "lng": -83.01688832,
-      "vehicle_count": 5,
+      "id": "PILEUP-0053",
+      "lat": 40.005951258333326,
+      "lng": -83.00930255833335,
+      "vehicle_count": 12,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-07-24T01:47:46+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 4,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 71,
       "active": true
     },
     {
-      "id": "PILEUP-0264",
-      "lat": 39.96147906666667,
-      "lng": -82.99992526666668,
-      "vehicle_count": 5,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-07-31T05:06:15+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 5,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0314",
-      "lat": 39.96538691666667,
-      "lng": -83.01003395833334,
-      "vehicle_count": 8,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-04T21:02:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 5,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0317",
-      "lat": 39.967240617307695,
-      "lng": -83.01891281346154,
-      "vehicle_count": 26,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-04T21:02:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 47,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0355",
-      "lat": 39.96780233333333,
-      "lng": -82.97688366666667,
-      "vehicle_count": 6,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-07T09:07:48+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 25,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0386",
-      "lat": 39.993139916666664,
-      "lng": -83.00677268333332,
-      "vehicle_count": 8,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-10T20:32:25+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 35,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0388",
-      "lat": 39.96758411904762,
-      "lng": -83.01344494285715,
-      "vehicle_count": 7,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-11T09:07:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 33,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0396",
-      "lat": 39.9359044,
-      "lng": -82.9888564,
-      "vehicle_count": 5,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-12T20:05:26+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 58,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0410",
-      "lat": 40.00103709333334,
-      "lng": -83.00825190666669,
+      "id": "PILEUP-0054",
+      "lat": 39.99549411666667,
+      "lng": -83.01469247,
       "vehicle_count": 10,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-14T05:42:47+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 37,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 45,
       "active": true
     },
     {
-      "id": "PILEUP-0424",
-      "lat": 39.99437174666666,
-      "lng": -83.01336262666666,
-      "vehicle_count": 5,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-15T20:12:33+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 11,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0444",
-      "lat": 39.997237383333335,
-      "lng": -83.00926925000002,
-      "vehicle_count": 6,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-18T04:42:48+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 19,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0456",
-      "lat": 39.94657004761905,
-      "lng": -83.00023542857143,
+      "id": "PILEUP-0058",
+      "lat": 39.970972857142854,
+      "lng": -82.97932357142858,
       "vehicle_count": 7,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-19T20:17:18+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 24,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 19,
       "active": true
     },
     {
-      "id": "PILEUP-0465",
-      "lat": 39.99684427333334,
-      "lng": -83.01357674,
+      "id": "PILEUP-0059",
+      "lat": 40.00184492,
+      "lng": -83.01306548000001,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-20T16:31:54+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 9,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 5,
       "active": true
     },
     {
-      "id": "PILEUP-0475",
-      "lat": 39.99531140666666,
-      "lng": -83.01180905999999,
-      "vehicle_count": 5,
+      "id": "PILEUP-0066",
+      "lat": 39.95747534649123,
+      "lng": -83.01140285438596,
+      "vehicle_count": 19,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-21T04:47:40+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 16,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 116,
       "active": true
     },
     {
-      "id": "PILEUP-0489",
-      "lat": 39.99540913333333,
-      "lng": -83.009466175,
+      "id": "PILEUP-0074",
+      "lat": 39.96034750833333,
+      "lng": -82.98687853333334,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-21T22:26:42+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 17,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 32,
       "active": true
     },
     {
-      "id": "PILEUP-0534",
-      "lat": 39.95756656666667,
-      "lng": -83.01183485000001,
-      "vehicle_count": 4,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-08-24T20:20:10+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 11,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0537",
-      "lat": 39.99697230833333,
-      "lng": -83.01505365,
+      "id": "PILEUP-0076",
+      "lat": 39.97464875,
+      "lng": -83.002948875,
       "vehicle_count": 8,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-25T04:47:17+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 54,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0079",
+      "lat": 39.9955785,
+      "lng": -83.01275416666667,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 10,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0082",
+      "lat": 39.97572025714286,
+      "lng": -83.00332669761906,
+      "vehicle_count": 7,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 25,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0102",
+      "lat": 39.997212,
+      "lng": -82.9778895,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-05-30T12:14:05+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 23,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0136",
+      "lat": 39.974155589999995,
+      "lng": -83.00118748,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-07T19:22:07+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 24,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0138",
+      "lat": 39.963254547619044,
+      "lng": -82.981438275,
+      "vehicle_count": 14,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-08T04:33:38+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 81,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0147",
+      "lat": 39.99480769722222,
+      "lng": -83.00697003333333,
+      "vehicle_count": 12,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-09T12:36:44+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 17,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0152",
+      "lat": 39.994143,
+      "lng": -83.00573375,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-09T12:36:44+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 29,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0173",
+      "lat": 40.00451111333333,
+      "lng": -83.02132389333333,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-15T22:11:58+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 2,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0195",
+      "lat": 39.9722046,
+      "lng": -83.0025897,
+      "vehicle_count": 10,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-20T09:56:34+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 100,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0200",
+      "lat": 39.96511744761904,
+      "lng": -82.9903185904762,
+      "vehicle_count": 7,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-20T09:56:34+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 39,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0205",
+      "lat": 39.95466906,
+      "lng": -83.01219086,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-20T09:56:34+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 8,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0227",
+      "lat": 39.96738218518519,
+      "lng": -83.01564407777778,
+      "vehicle_count": 9,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-24T01:04:04+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 43,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0253",
+      "lat": 39.961170333333335,
+      "lng": -83.00644558333333,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-31T05:06:15+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 27,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0268",
+      "lat": 39.96870466666667,
+      "lng": -83.00399416666666,
+      "vehicle_count": 6,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-07-31T05:17:42+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 49,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0314",
+      "lat": 39.96541293333333,
+      "lng": -83.00995146666666,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-04T21:02:38+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 8,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0317",
+      "lat": 39.96720648055556,
+      "lng": -83.01891519722223,
+      "vehicle_count": 24,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-04T21:02:38+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 50,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0328",
+      "lat": 39.99510265833334,
+      "lng": -83.01669605833334,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-05T10:43:24+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
       "snapshot_count": 9,
       "active": true
     },
     {
-      "id": "PILEUP-0542",
-      "lat": 40.00096275,
-      "lng": -83.014047625,
+      "id": "PILEUP-0340",
+      "lat": 39.96602383333333,
+      "lng": -83.00317533333333,
+      "vehicle_count": 6,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-06T10:46:37+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0348",
+      "lat": 39.99421323333333,
+      "lng": -83.021689025,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-07T00:50:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 9,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0355",
+      "lat": 39.96781800000001,
+      "lng": -82.97691728571428,
+      "vehicle_count": 7,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-07T09:07:48+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 28,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0388",
+      "lat": 39.96760065,
+      "lng": -83.01344399333334,
+      "vehicle_count": 10,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-11T09:07:38+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 36,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0396",
+      "lat": 39.93590424999999,
+      "lng": -82.98884575000001,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-12T20:05:26+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 61,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0410",
+      "lat": 40.00106786363636,
+      "lng": -83.00837925151515,
+      "vehicle_count": 11,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-14T05:42:47+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 38,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0429",
+      "lat": 39.99827726666667,
+      "lng": -83.00974118,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-16T04:43:06+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 9,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0430",
+      "lat": 39.99968345,
+      "lng": -83.02212815,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-16T08:38:11+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0456",
+      "lat": 39.94660004166667,
+      "lng": -83.00020087500002,
+      "vehicle_count": 8,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-19T20:17:18+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 27,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0465",
+      "lat": 39.99687927222222,
+      "lng": -83.01356951666665,
+      "vehicle_count": 6,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-20T16:31:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 11,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0472",
+      "lat": 40.00008985833334,
+      "lng": -83.02144633833333,
+      "vehicle_count": 20,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-20T22:29:50+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 11,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0487",
+      "lat": 39.99631428666667,
+      "lng": -83.00975509999999,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-21T20:16:09+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0498",
+      "lat": 40.00589457499999,
+      "lng": -83.013789,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-22T16:20:43+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 16,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0515",
+      "lat": 40.00535945,
+      "lng": -83.01020115,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-23T04:45:01+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0537",
+      "lat": 39.9968296,
+      "lng": -83.015055,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-25T04:47:17+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 11,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0543",
+      "lat": 40.001170300000005,
+      "lng": -83.01289635,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-25T20:19:16+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 3,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
       "active": true
     },
     {
-      "id": "PILEUP-0543",
-      "lat": 40.00112557333334,
-      "lng": -83.01288772000001,
+      "id": "PILEUP-0549",
+      "lat": 39.96878097333333,
+      "lng": -83.00770402,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-25T20:19:16+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 3,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0549",
-      "lat": 39.96871495,
-      "lng": -83.00764614999999,
-      "vehicle_count": 6,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
       "first_detected_at": "2026-08-26T01:17:45+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 5,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 7,
       "active": true
     },
     {
       "id": "PILEUP-0551",
-      "lat": 40.000319250000004,
-      "lng": -83.0154225,
+      "lat": 40.000550249999996,
+      "lng": -83.0155202,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-26T16:47:04+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0552",
+      "lat": 39.997092386666665,
+      "lng": -83.01633978000001,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-26T16:47:04+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
       "snapshot_count": 2,
       "active": true
     },
     {
       "id": "PILEUP-0555",
-      "lat": 39.96995546666667,
-      "lng": -82.9735224,
+      "lat": 39.96993333333334,
+      "lng": -82.97351926666667,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-26T22:36:52+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 1,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
       "active": true
     },
     {
-      "id": "PILEUP-0556",
-      "lat": 39.95499285,
-      "lng": -82.999486375,
+      "id": "PILEUP-0557",
+      "lat": 39.994870391666666,
+      "lng": -83.012436175,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-08-26T22:36:52+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
+      "first_detected_at": "2026-08-27T02:59:53+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0558",
+      "lat": 40.00216135714286,
+      "lng": -83.01082358571429,
+      "vehicle_count": 7,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 1,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0559",
+      "lat": 40.00648855,
+      "lng": -83.0085419,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 1,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0560",
+      "lat": 40.002834175,
+      "lng": -83.0146657,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 1,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0561",
+      "lat": 40.00172266,
+      "lng": -83.01394900666666,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
       "snapshot_count": 1,
       "active": true
     }
@@ -580,142 +818,142 @@
   "recent_pileups": [
     {
       "id": "PILEUP-0008",
-      "lat": 39.994046188405804,
-      "lng": -83.00679333115943,
-      "vehicle_count": 23,
+      "lat": 39.99405858787879,
+      "lng": -83.00685066136363,
+      "vehicle_count": 22,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 97,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 100,
       "active": true
     },
     {
-      "id": "PILEUP-0010",
-      "lat": 40.00345145,
-      "lng": -83.01573995000001,
+      "id": "PILEUP-0011",
+      "lat": 40.004153525,
+      "lng": -83.01623090000001,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 4,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 2,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0018",
+      "lat": 39.99930155185185,
+      "lng": -83.02148927777779,
+      "vehicle_count": 9,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-02-26T18:31:58+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 81,
       "active": true
     },
     {
       "id": "PILEUP-0023",
-      "lat": 40.003859647435895,
-      "lng": -83.0128946205128,
-      "vehicle_count": 26,
+      "lat": 40.003899927999996,
+      "lng": -83.01293857199998,
+      "vehicle_count": 25,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 76,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0034",
-      "lat": 39.998113361111116,
-      "lng": -83.00967394999999,
-      "vehicle_count": 6,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 69,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 79,
       "active": true
     },
     {
       "id": "PILEUP-0037",
-      "lat": 39.94050318666667,
-      "lng": -82.98349664666668,
+      "lat": 39.94050764666666,
+      "lng": -82.98350632666666,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 28,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 31,
       "active": true
     },
     {
-      "id": "PILEUP-0043",
-      "lat": 40.000158648148144,
-      "lng": -83.02144889814814,
-      "vehicle_count": 18,
+      "id": "PILEUP-0049",
+      "lat": 39.99840363333334,
+      "lng": -83.0153205,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
-      "first_detected_at": "2026-02-27T05:20:51+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 30,
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0050",
+      "lat": 40.00031266875,
+      "lng": -83.01802974375002,
+      "vehicle_count": 24,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 53,
       "active": true
     },
     {
       "id": "PILEUP-0052",
-      "lat": 39.993549692307695,
-      "lng": -82.98111892307693,
-      "vehicle_count": 13,
+      "lat": 39.993568749999994,
+      "lng": -82.98109275,
+      "vehicle_count": 12,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 104,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 107,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0053",
+      "lat": 40.005951258333326,
+      "lng": -83.00930255833335,
+      "vehicle_count": 12,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 71,
       "active": true
     },
     {
       "id": "PILEUP-0054",
-      "lat": 39.99554252666667,
-      "lng": -83.01475982000001,
-      "vehicle_count": 5,
+      "lat": 39.99549411666667,
+      "lng": -83.01469247,
+      "vehicle_count": 10,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 42,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0058",
-      "lat": 39.97093400000001,
-      "lng": -82.97933787499998,
-      "vehicle_count": 8,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 16,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0066",
-      "lat": 39.95746871984127,
-      "lng": -83.0114219190476,
-      "vehicle_count": 21,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 113,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 45,
       "active": true
     }
   ],
@@ -820,16 +1058,16 @@
     },
     {
       "id": "PILEUP-0008",
-      "lat": 39.994046188405804,
-      "lng": -83.00679333115943,
-      "vehicle_count": 23,
+      "lat": 39.99405858787879,
+      "lng": -83.00685066136363,
+      "vehicle_count": 22,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 97,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 100,
       "active": true
     },
     {
@@ -848,31 +1086,31 @@
     },
     {
       "id": "PILEUP-0010",
-      "lat": 40.00345145,
-      "lng": -83.01573995000001,
-      "vehicle_count": 4,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 4,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0011",
-      "lat": 40.004062000000005,
-      "lng": -83.01594958333332,
+      "lat": 40.00345769444444,
+      "lng": -83.01575328888889,
       "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-02-26T18:31:58+00:00",
-      "snapshot_count": 1,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 5,
       "active": false
+    },
+    {
+      "id": "PILEUP-0011",
+      "lat": 40.004153525,
+      "lng": -83.01623090000001,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-02-26T18:31:58+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 2,
+      "active": true
     },
     {
       "id": "PILEUP-0012",
@@ -932,16 +1170,16 @@
     },
     {
       "id": "PILEUP-0016",
-      "lat": 40.00206636,
-      "lng": -83.01266574,
-      "vehicle_count": 5,
+      "lat": 40.00197038333334,
+      "lng": -83.0128601,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 5,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 6,
       "active": false
     },
     {
@@ -960,17 +1198,17 @@
     },
     {
       "id": "PILEUP-0018",
-      "lat": 39.99929359814815,
-      "lng": -83.02150150555555,
-      "vehicle_count": 18,
+      "lat": 39.99930155185185,
+      "lng": -83.02148927777779,
+      "vehicle_count": 9,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T01:17:45+00:00",
-      "snapshot_count": 78,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 81,
+      "active": true
     },
     {
       "id": "PILEUP-0019",
@@ -1030,16 +1268,16 @@
     },
     {
       "id": "PILEUP-0023",
-      "lat": 40.003859647435895,
-      "lng": -83.0128946205128,
-      "vehicle_count": 26,
+      "lat": 40.003899927999996,
+      "lng": -83.01293857199998,
+      "vehicle_count": 25,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 76,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 79,
       "active": true
     },
     {
@@ -1194,7 +1432,7 @@
       "first_detected_at": "2026-02-26T18:31:58+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
       "snapshot_count": 69,
-      "active": true
+      "active": false
     },
     {
       "id": "PILEUP-0035",
@@ -1226,16 +1464,16 @@
     },
     {
       "id": "PILEUP-0037",
-      "lat": 39.94050318666667,
-      "lng": -82.98349664666668,
+      "lat": 39.94050764666666,
+      "lng": -82.98350632666666,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-26T18:31:58+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 28,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 31,
       "active": true
     },
     {
@@ -1282,16 +1520,16 @@
     },
     {
       "id": "PILEUP-0041",
-      "lat": 39.9608145,
-      "lng": -83.01262083333334,
-      "vehicle_count": 6,
+      "lat": 39.9608134,
+      "lng": -83.01273400000001,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-27T05:20:51+00:00",
-      "last_seen_at": "2026-08-25T08:52:08+00:00",
-      "snapshot_count": 83,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 85,
       "active": false
     },
     {
@@ -1310,17 +1548,17 @@
     },
     {
       "id": "PILEUP-0043",
-      "lat": 40.000158648148144,
-      "lng": -83.02144889814814,
-      "vehicle_count": 18,
+      "lat": 39.99998125333333,
+      "lng": -83.02168427333334,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-27T05:20:51+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 30,
-      "active": true
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 32,
+      "active": false
     },
     {
       "id": "PILEUP-0044",
@@ -1338,16 +1576,16 @@
     },
     {
       "id": "PILEUP-0045",
-      "lat": 40.0071644,
-      "lng": -83.01969905,
-      "vehicle_count": 6,
+      "lat": 40.0071298,
+      "lng": -83.01964394,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-02-27T05:20:51+00:00",
-      "last_seen_at": "2026-08-26T08:53:38+00:00",
-      "snapshot_count": 3,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 4,
       "active": false
     },
     {
@@ -1394,31 +1632,31 @@
     },
     {
       "id": "PILEUP-0049",
-      "lat": 39.998808,
-      "lng": -83.01530025,
+      "lat": 39.99840363333334,
+      "lng": -83.0153205,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-18T20:13:49+00:00",
-      "snapshot_count": 2,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
     },
     {
       "id": "PILEUP-0050",
-      "lat": 40.0002827875,
-      "lng": -83.01802755,
-      "vehicle_count": 8,
+      "lat": 40.00031266875,
+      "lng": -83.01802974375002,
+      "vehicle_count": 24,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-20T22:29:50+00:00",
-      "snapshot_count": 52,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 53,
+      "active": true
     },
     {
       "id": "PILEUP-0051",
@@ -1436,44 +1674,44 @@
     },
     {
       "id": "PILEUP-0052",
-      "lat": 39.993549692307695,
-      "lng": -82.98111892307693,
-      "vehicle_count": 13,
-      "companies": [
-        "Spin",
-        "Veo"
-      ],
-      "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 104,
-      "active": true
-    },
-    {
-      "id": "PILEUP-0053",
-      "lat": 40.00587847083334,
-      "lng": -83.00940963611112,
+      "lat": 39.993568749999994,
+      "lng": -82.98109275,
       "vehicle_count": 12,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-23T20:12:49+00:00",
-      "snapshot_count": 69,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 107,
+      "active": true
     },
     {
-      "id": "PILEUP-0054",
-      "lat": 39.99554252666667,
-      "lng": -83.01475982000001,
-      "vehicle_count": 5,
+      "id": "PILEUP-0053",
+      "lat": 40.005951258333326,
+      "lng": -83.00930255833335,
+      "vehicle_count": 12,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 42,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 71,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0054",
+      "lat": 39.99549411666667,
+      "lng": -83.01469247,
+      "vehicle_count": 10,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-03-12T01:18:56+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 45,
       "active": true
     },
     {
@@ -1506,45 +1744,45 @@
     },
     {
       "id": "PILEUP-0057",
-      "lat": 39.99196257083333,
-      "lng": -83.00665065416668,
+      "lat": 39.99197625833333,
+      "lng": -83.00657567500001,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T08:53:38+00:00",
-      "snapshot_count": 59,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 60,
       "active": false
     },
     {
       "id": "PILEUP-0058",
-      "lat": 39.97093400000001,
-      "lng": -82.97933787499998,
-      "vehicle_count": 8,
+      "lat": 39.970972857142854,
+      "lng": -82.97932357142858,
+      "vehicle_count": 7,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 16,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 19,
       "active": true
     },
     {
       "id": "PILEUP-0059",
-      "lat": 40.001774325,
-      "lng": -83.01306556666667,
-      "vehicle_count": 4,
+      "lat": 40.00184492,
+      "lng": -83.01306548000001,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 4,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 5,
+      "active": true
     },
     {
       "id": "PILEUP-0060",
@@ -1632,16 +1870,16 @@
     },
     {
       "id": "PILEUP-0066",
-      "lat": 39.95746871984127,
-      "lng": -83.0114219190476,
-      "vehicle_count": 21,
+      "lat": 39.95747534649123,
+      "lng": -83.01140285438596,
+      "vehicle_count": 19,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 113,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 116,
       "active": true
     },
     {
@@ -1744,16 +1982,16 @@
     },
     {
       "id": "PILEUP-0074",
-      "lat": 39.960277852380955,
-      "lng": -82.9868729095238,
-      "vehicle_count": 7,
+      "lat": 39.96034750833333,
+      "lng": -82.98687853333334,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 29,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 32,
       "active": true
     },
     {
@@ -1772,17 +2010,17 @@
     },
     {
       "id": "PILEUP-0076",
-      "lat": 39.97463450000001,
-      "lng": -83.00300675,
-      "vehicle_count": 4,
+      "lat": 39.97464875,
+      "lng": -83.002948875,
+      "vehicle_count": 8,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 53,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 54,
+      "active": true
     },
     {
       "id": "PILEUP-0077",
@@ -1814,17 +2052,17 @@
     },
     {
       "id": "PILEUP-0079",
-      "lat": 39.99565199333334,
-      "lng": -83.01281134000001,
-      "vehicle_count": 5,
+      "lat": 39.9955785,
+      "lng": -83.01275416666667,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-25T08:52:08+00:00",
-      "snapshot_count": 7,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 10,
+      "active": true
     },
     {
       "id": "PILEUP-0080",
@@ -1856,17 +2094,17 @@
     },
     {
       "id": "PILEUP-0082",
-      "lat": 39.97543661,
-      "lng": -83.00329114000002,
-      "vehicle_count": 5,
+      "lat": 39.97572025714286,
+      "lng": -83.00332669761906,
+      "vehicle_count": 7,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-03-12T01:18:56+00:00",
-      "last_seen_at": "2026-08-22T04:40:36+00:00",
-      "snapshot_count": 24,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 25,
+      "active": true
     },
     {
       "id": "PILEUP-0083",
@@ -2024,16 +2262,16 @@
     },
     {
       "id": "PILEUP-0094",
-      "lat": 39.99031235,
-      "lng": -83.0049811,
-      "vehicle_count": 4,
+      "lat": 39.99034127777778,
+      "lng": -83.00494441666666,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-05-30T12:14:05+00:00",
-      "last_seen_at": "2026-08-24T01:17:04+00:00",
-      "snapshot_count": 3,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 5,
       "active": false
     },
     {
@@ -2136,17 +2374,17 @@
     },
     {
       "id": "PILEUP-0102",
-      "lat": 39.997224,
-      "lng": -82.97782258333334,
+      "lat": 39.997212,
+      "lng": -82.9778895,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-05-30T12:14:05+00:00",
-      "last_seen_at": "2026-08-23T22:23:16+00:00",
-      "snapshot_count": 20,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 23,
+      "active": true
     },
     {
       "id": "PILEUP-0103",
@@ -2612,17 +2850,17 @@
     },
     {
       "id": "PILEUP-0136",
-      "lat": 39.9741156625,
-      "lng": -83.001294925,
-      "vehicle_count": 4,
+      "lat": 39.974155589999995,
+      "lng": -83.00118748,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-07T19:22:07+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 21,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 24,
+      "active": true
     },
     {
       "id": "PILEUP-0137",
@@ -2640,16 +2878,16 @@
     },
     {
       "id": "PILEUP-0138",
-      "lat": 39.96323716333333,
-      "lng": -82.98137949444444,
-      "vehicle_count": 15,
+      "lat": 39.963254547619044,
+      "lng": -82.981438275,
+      "vehicle_count": 14,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-08T04:33:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 78,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 81,
       "active": true
     },
     {
@@ -2668,16 +2906,16 @@
     },
     {
       "id": "PILEUP-0140",
-      "lat": 39.95914418666667,
-      "lng": -83.00200939999999,
+      "lat": 39.95959598,
+      "lng": -83.00195521999999,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-08T04:33:38+00:00",
-      "last_seen_at": "2026-08-23T22:23:16+00:00",
-      "snapshot_count": 39,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 40,
       "active": false
     },
     {
@@ -2766,16 +3004,16 @@
     },
     {
       "id": "PILEUP-0147",
-      "lat": 39.9948618,
-      "lng": -83.00710609583334,
-      "vehicle_count": 8,
+      "lat": 39.99480769722222,
+      "lng": -83.00697003333333,
+      "vehicle_count": 12,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-09T12:36:44+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 15,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 17,
       "active": true
     },
     {
@@ -2836,17 +3074,17 @@
     },
     {
       "id": "PILEUP-0152",
-      "lat": 39.99411419047619,
-      "lng": -83.00576024285715,
-      "vehicle_count": 7,
+      "lat": 39.994143,
+      "lng": -83.00573375,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-09T12:36:44+00:00",
-      "last_seen_at": "2026-08-26T01:17:45+00:00",
-      "snapshot_count": 28,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 29,
+      "active": true
     },
     {
       "id": "PILEUP-0153",
@@ -2864,16 +3102,16 @@
     },
     {
       "id": "PILEUP-0154",
-      "lat": 39.990703575,
-      "lng": -83.00634740833334,
+      "lat": 39.990781925,
+      "lng": -83.006200225,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-09T12:36:44+00:00",
-      "last_seen_at": "2026-07-09T12:36:44+00:00",
-      "snapshot_count": 1,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 2,
       "active": false
     },
     {
@@ -3130,17 +3368,17 @@
     },
     {
       "id": "PILEUP-0173",
-      "lat": 40.00446447539684,
-      "lng": -83.02132739444444,
-      "vehicle_count": 21,
+      "lat": 40.00451111333333,
+      "lng": -83.02132389333333,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-15T22:11:58+00:00",
-      "last_seen_at": "2026-07-15T22:11:58+00:00",
-      "snapshot_count": 1,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 2,
+      "active": true
     },
     {
       "id": "PILEUP-0174",
@@ -3326,16 +3564,16 @@
     },
     {
       "id": "PILEUP-0187",
-      "lat": 39.99466121333334,
-      "lng": -83.00692535333334,
-      "vehicle_count": 5,
+      "lat": 39.99467675555555,
+      "lng": -83.00689459444445,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-16T09:13:17+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 42,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 43,
       "active": false
     },
     {
@@ -3354,17 +3592,17 @@
     },
     {
       "id": "PILEUP-0189",
-      "lat": 39.99741163333333,
-      "lng": -83.00759658333334,
-      "vehicle_count": 4,
+      "lat": 39.99738777,
+      "lng": -83.00751720666668,
+      "vehicle_count": 10,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-16T09:13:17+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 63,
-      "active": true
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 64,
+      "active": false
     },
     {
       "id": "PILEUP-0190",
@@ -3438,16 +3676,16 @@
     },
     {
       "id": "PILEUP-0195",
-      "lat": 39.97216672727273,
-      "lng": -83.00263318181818,
-      "vehicle_count": 11,
+      "lat": 39.9722046,
+      "lng": -83.0025897,
+      "vehicle_count": 10,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-20T09:56:34+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 99,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 100,
       "active": true
     },
     {
@@ -3508,16 +3746,16 @@
     },
     {
       "id": "PILEUP-0200",
-      "lat": 39.965146747619045,
-      "lng": -82.99037441904763,
+      "lat": 39.96511744761904,
+      "lng": -82.9903185904762,
       "vehicle_count": 7,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-20T09:56:34+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 36,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 39,
       "active": true
     },
     {
@@ -3578,17 +3816,17 @@
     },
     {
       "id": "PILEUP-0205",
-      "lat": 39.95462915,
-      "lng": -83.0120421,
-      "vehicle_count": 4,
+      "lat": 39.95466906,
+      "lng": -83.01219086,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-20T09:56:34+00:00",
-      "last_seen_at": "2026-08-02T09:58:33+00:00",
-      "snapshot_count": 6,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 8,
+      "active": true
     },
     {
       "id": "PILEUP-0206",
@@ -3886,16 +4124,16 @@
     },
     {
       "id": "PILEUP-0227",
-      "lat": 39.96738734722223,
-      "lng": -83.01564086666667,
-      "vehicle_count": 12,
+      "lat": 39.96738218518519,
+      "lng": -83.01564407777778,
+      "vehicle_count": 9,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-24T01:04:04+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 40,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 43,
       "active": true
     },
     {
@@ -3956,31 +4194,31 @@
     },
     {
       "id": "PILEUP-0232",
-      "lat": 39.968935419999994,
-      "lng": -83.0011066,
-      "vehicle_count": 5,
+      "lat": 39.96911753333334,
+      "lng": -83.00117163333334,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-24T01:47:46+00:00",
-      "last_seen_at": "2026-08-26T01:17:45+00:00",
-      "snapshot_count": 31,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 33,
       "active": false
     },
     {
       "id": "PILEUP-0233",
-      "lat": 40.006177359999995,
-      "lng": -83.01688832,
-      "vehicle_count": 5,
+      "lat": 40.006262642857145,
+      "lng": -83.01684785714285,
+      "vehicle_count": 7,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-24T01:47:46+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 4,
-      "active": true
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 5,
+      "active": false
     },
     {
       "id": "PILEUP-0234",
@@ -3998,16 +4236,16 @@
     },
     {
       "id": "PILEUP-0235",
-      "lat": 39.97805015,
-      "lng": -83.003698575,
+      "lat": 39.978100212499996,
+      "lng": -83.00376105000001,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-24T01:47:46+00:00",
-      "last_seen_at": "2026-08-16T20:11:56+00:00",
-      "snapshot_count": 17,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 18,
       "active": false
     },
     {
@@ -4082,16 +4320,16 @@
     },
     {
       "id": "PILEUP-0241",
-      "lat": 39.994061438888885,
-      "lng": -83.01851256666667,
-      "vehicle_count": 6,
+      "lat": 39.99409042,
+      "lng": -83.01848256,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-27T03:12:16+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 2,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 3,
       "active": false
     },
     {
@@ -4250,17 +4488,17 @@
     },
     {
       "id": "PILEUP-0253",
-      "lat": 39.96131724999999,
-      "lng": -83.00666620833333,
-      "vehicle_count": 8,
+      "lat": 39.961170333333335,
+      "lng": -83.00644558333333,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-31T05:06:15+00:00",
-      "last_seen_at": "2026-08-23T04:45:01+00:00",
-      "snapshot_count": 25,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 27,
+      "active": true
     },
     {
       "id": "PILEUP-0254",
@@ -4414,7 +4652,7 @@
       "first_detected_at": "2026-07-31T05:06:15+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
       "snapshot_count": 5,
-      "active": true
+      "active": false
     },
     {
       "id": "PILEUP-0265",
@@ -4460,17 +4698,17 @@
     },
     {
       "id": "PILEUP-0268",
-      "lat": 39.968788993333334,
-      "lng": -83.00406923,
-      "vehicle_count": 10,
+      "lat": 39.96870466666667,
+      "lng": -83.00399416666666,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-07-31T05:17:42+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 48,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 49,
+      "active": true
     },
     {
       "id": "PILEUP-0269",
@@ -4782,16 +5020,16 @@
     },
     {
       "id": "PILEUP-0291",
-      "lat": 40.006421044444444,
-      "lng": -83.00925815555554,
-      "vehicle_count": 9,
+      "lat": 40.00687931333333,
+      "lng": -83.00935324666666,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-02T09:14:11+00:00",
-      "last_seen_at": "2026-08-26T04:48:36+00:00",
-      "snapshot_count": 39,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 40,
       "active": false
     },
     {
@@ -5104,16 +5342,16 @@
     },
     {
       "id": "PILEUP-0314",
-      "lat": 39.96538691666667,
-      "lng": -83.01003395833334,
-      "vehicle_count": 8,
+      "lat": 39.96541293333333,
+      "lng": -83.00995146666666,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-04T21:02:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 5,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 8,
       "active": true
     },
     {
@@ -5146,16 +5384,16 @@
     },
     {
       "id": "PILEUP-0317",
-      "lat": 39.967240617307695,
-      "lng": -83.01891281346154,
-      "vehicle_count": 26,
+      "lat": 39.96720648055556,
+      "lng": -83.01891519722223,
+      "vehicle_count": 24,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-04T21:02:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 47,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 50,
       "active": true
     },
     {
@@ -5300,17 +5538,17 @@
     },
     {
       "id": "PILEUP-0328",
-      "lat": 39.99519385,
-      "lng": -83.016808625,
+      "lat": 39.99510265833334,
+      "lng": -83.01669605833334,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-05T10:43:24+00:00",
-      "last_seen_at": "2026-08-24T20:20:10+00:00",
-      "snapshot_count": 8,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 9,
+      "active": true
     },
     {
       "id": "PILEUP-0329",
@@ -5468,17 +5706,17 @@
     },
     {
       "id": "PILEUP-0340",
-      "lat": 39.966106393333334,
-      "lng": -83.00299165999999,
-      "vehicle_count": 5,
+      "lat": 39.96602383333333,
+      "lng": -83.00317533333333,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-06T10:46:37+00:00",
-      "last_seen_at": "2026-08-20T08:49:32+00:00",
-      "snapshot_count": 3,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
+      "active": true
     },
     {
       "id": "PILEUP-0341",
@@ -5580,17 +5818,17 @@
     },
     {
       "id": "PILEUP-0348",
-      "lat": 39.99413245833334,
-      "lng": -83.021648425,
+      "lat": 39.99421323333333,
+      "lng": -83.021689025,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-07T00:50:54+00:00",
-      "last_seen_at": "2026-08-14T20:23:05+00:00",
-      "snapshot_count": 6,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 9,
+      "active": true
     },
     {
       "id": "PILEUP-0349",
@@ -5678,16 +5916,16 @@
     },
     {
       "id": "PILEUP-0355",
-      "lat": 39.96780233333333,
-      "lng": -82.97688366666667,
-      "vehicle_count": 6,
+      "lat": 39.96781800000001,
+      "lng": -82.97691728571428,
+      "vehicle_count": 7,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-07T09:07:48+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 25,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 28,
       "active": true
     },
     {
@@ -6122,7 +6360,7 @@
       "first_detected_at": "2026-08-10T20:32:25+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
       "snapshot_count": 35,
-      "active": true
+      "active": false
     },
     {
       "id": "PILEUP-0387",
@@ -6140,16 +6378,16 @@
     },
     {
       "id": "PILEUP-0388",
-      "lat": 39.96758411904762,
-      "lng": -83.01344494285715,
-      "vehicle_count": 7,
+      "lat": 39.96760065,
+      "lng": -83.01344399333334,
+      "vehicle_count": 10,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-11T09:07:38+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 33,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 36,
       "active": true
     },
     {
@@ -6210,16 +6448,16 @@
     },
     {
       "id": "PILEUP-0393",
-      "lat": 39.97152305555556,
-      "lng": -83.0026263111111,
-      "vehicle_count": 9,
+      "lat": 39.971545774999996,
+      "lng": -83.0026977,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-12T05:42:31+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 42,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 43,
       "active": false
     },
     {
@@ -6252,16 +6490,16 @@
     },
     {
       "id": "PILEUP-0396",
-      "lat": 39.9359044,
-      "lng": -82.9888564,
-      "vehicle_count": 5,
+      "lat": 39.93590424999999,
+      "lng": -82.98884575000001,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-12T20:05:26+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 58,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 61,
       "active": true
     },
     {
@@ -6448,16 +6686,16 @@
     },
     {
       "id": "PILEUP-0410",
-      "lat": 40.00103709333334,
-      "lng": -83.00825190666669,
-      "vehicle_count": 10,
+      "lat": 40.00106786363636,
+      "lng": -83.00837925151515,
+      "vehicle_count": 11,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-14T05:42:47+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 37,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 38,
       "active": true
     },
     {
@@ -6644,17 +6882,17 @@
     },
     {
       "id": "PILEUP-0424",
-      "lat": 39.99437174666666,
-      "lng": -83.01336262666666,
-      "vehicle_count": 5,
+      "lat": 39.99441535,
+      "lng": -83.01346645000001,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-15T20:12:33+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 11,
-      "active": true
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 12,
+      "active": false
     },
     {
       "id": "PILEUP-0425",
@@ -6714,31 +6952,31 @@
     },
     {
       "id": "PILEUP-0429",
-      "lat": 39.99834706666667,
-      "lng": -83.00986444166666,
-      "vehicle_count": 4,
+      "lat": 39.99827726666667,
+      "lng": -83.00974118,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-16T04:43:06+00:00",
-      "last_seen_at": "2026-08-21T01:17:04+00:00",
-      "snapshot_count": 6,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 9,
+      "active": true
     },
     {
       "id": "PILEUP-0430",
-      "lat": 39.99976743333333,
-      "lng": -83.0226913,
+      "lat": 39.99968345,
+      "lng": -83.02212815,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-16T08:38:11+00:00",
-      "last_seen_at": "2026-08-16T08:38:11+00:00",
-      "snapshot_count": 1,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
     },
     {
       "id": "PILEUP-0431",
@@ -6826,16 +7064,16 @@
     },
     {
       "id": "PILEUP-0437",
-      "lat": 40.004029,
-      "lng": -83.01081762499999,
-      "vehicle_count": 4,
+      "lat": 40.00390765,
+      "lng": -83.01097528333334,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-17T08:53:18+00:00",
-      "last_seen_at": "2026-08-24T22:28:16+00:00",
-      "snapshot_count": 28,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 29,
       "active": false
     },
     {
@@ -6896,16 +7134,16 @@
     },
     {
       "id": "PILEUP-0442",
-      "lat": 39.95923340666667,
-      "lng": -82.99520020666667,
+      "lat": 39.959361200000004,
+      "lng": -82.9950846,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-18T04:42:48+00:00",
-      "last_seen_at": "2026-08-26T08:53:38+00:00",
-      "snapshot_count": 6,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 7,
       "active": false
     },
     {
@@ -6934,7 +7172,7 @@
       "first_detected_at": "2026-08-18T04:42:48+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
       "snapshot_count": 19,
-      "active": true
+      "active": false
     },
     {
       "id": "PILEUP-0445",
@@ -7064,16 +7302,16 @@
     },
     {
       "id": "PILEUP-0454",
-      "lat": 39.99291306,
-      "lng": -83.00683042,
+      "lat": 39.99282257333333,
+      "lng": -83.0067846,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-19T08:47:11+00:00",
-      "last_seen_at": "2026-08-20T20:19:05+00:00",
-      "snapshot_count": 2,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 3,
       "active": false
     },
     {
@@ -7092,16 +7330,16 @@
     },
     {
       "id": "PILEUP-0456",
-      "lat": 39.94657004761905,
-      "lng": -83.00023542857143,
-      "vehicle_count": 7,
+      "lat": 39.94660004166667,
+      "lng": -83.00020087500002,
+      "vehicle_count": 8,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-19T20:17:18+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 24,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 27,
       "active": true
     },
     {
@@ -7218,16 +7456,16 @@
     },
     {
       "id": "PILEUP-0465",
-      "lat": 39.99684427333334,
-      "lng": -83.01357674,
-      "vehicle_count": 5,
+      "lat": 39.99687927222222,
+      "lng": -83.01356951666665,
+      "vehicle_count": 6,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-20T16:31:54+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 9,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 11,
       "active": true
     },
     {
@@ -7316,17 +7554,17 @@
     },
     {
       "id": "PILEUP-0472",
-      "lat": 39.99966962727273,
-      "lng": -83.02143223181817,
-      "vehicle_count": 33,
+      "lat": 40.00008985833334,
+      "lng": -83.02144633833333,
+      "vehicle_count": 20,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-20T22:29:50+00:00",
-      "last_seen_at": "2026-08-25T04:47:17+00:00",
-      "snapshot_count": 9,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 11,
+      "active": true
     },
     {
       "id": "PILEUP-0473",
@@ -7368,7 +7606,7 @@
       "first_detected_at": "2026-08-21T04:47:40+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
       "snapshot_count": 16,
-      "active": true
+      "active": false
     },
     {
       "id": "PILEUP-0476",
@@ -7526,17 +7764,17 @@
     },
     {
       "id": "PILEUP-0487",
-      "lat": 39.996292260416666,
-      "lng": -83.00955117708331,
-      "vehicle_count": 16,
+      "lat": 39.99631428666667,
+      "lng": -83.00975509999999,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-21T20:16:09+00:00",
-      "last_seen_at": "2026-08-25T08:52:08+00:00",
-      "snapshot_count": 3,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
+      "active": true
     },
     {
       "id": "PILEUP-0488",
@@ -7554,17 +7792,17 @@
     },
     {
       "id": "PILEUP-0489",
-      "lat": 39.99540913333333,
-      "lng": -83.009466175,
-      "vehicle_count": 4,
+      "lat": 39.99541479333333,
+      "lng": -83.00945076,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-21T22:26:42+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 17,
-      "active": true
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 18,
+      "active": false
     },
     {
       "id": "PILEUP-0490",
@@ -7680,17 +7918,17 @@
     },
     {
       "id": "PILEUP-0498",
-      "lat": 40.00576733333333,
-      "lng": -83.01384313333334,
-      "vehicle_count": 6,
+      "lat": 40.00589457499999,
+      "lng": -83.013789,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-22T16:20:43+00:00",
-      "last_seen_at": "2026-08-26T01:17:45+00:00",
-      "snapshot_count": 14,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 16,
+      "active": true
     },
     {
       "id": "PILEUP-0499",
@@ -7736,16 +7974,16 @@
     },
     {
       "id": "PILEUP-0502",
-      "lat": 40.005614854166666,
-      "lng": -83.0118375875,
-      "vehicle_count": 8,
+      "lat": 40.00565228000001,
+      "lng": -83.01175029999999,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-22T20:12:57+00:00",
-      "last_seen_at": "2026-08-25T08:52:08+00:00",
-      "snapshot_count": 16,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 17,
       "active": false
     },
     {
@@ -7848,16 +8086,16 @@
     },
     {
       "id": "PILEUP-0510",
-      "lat": 40.00149705454545,
-      "lng": -83.00876725454545,
-      "vehicle_count": 11,
+      "lat": 40.001533,
+      "lng": -83.00887208,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-23T01:19:09+00:00",
-      "last_seen_at": "2026-08-23T01:19:09+00:00",
-      "snapshot_count": 1,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 2,
       "active": false
     },
     {
@@ -7918,17 +8156,17 @@
     },
     {
       "id": "PILEUP-0515",
-      "lat": 40.00558877499999,
-      "lng": -83.01043064999999,
+      "lat": 40.00535945,
+      "lng": -83.01020115,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-23T04:45:01+00:00",
-      "last_seen_at": "2026-08-23T04:45:01+00:00",
-      "snapshot_count": 1,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
     },
     {
       "id": "PILEUP-0516",
@@ -8100,16 +8338,16 @@
     },
     {
       "id": "PILEUP-0528",
-      "lat": 40.00463839166667,
-      "lng": -83.01336721666668,
-      "vehicle_count": 6,
+      "lat": 40.004641675,
+      "lng": -83.013963525,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-24T04:54:00+00:00",
-      "last_seen_at": "2026-08-26T08:53:38+00:00",
-      "snapshot_count": 8,
+      "last_seen_at": "2026-08-27T02:59:53+00:00",
+      "snapshot_count": 9,
       "active": false
     },
     {
@@ -8184,17 +8422,17 @@
     },
     {
       "id": "PILEUP-0534",
-      "lat": 39.95756656666667,
-      "lng": -83.01183485000001,
+      "lat": 39.957563416666666,
+      "lng": -83.01186675,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-24T20:20:10+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 11,
-      "active": true
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 13,
+      "active": false
     },
     {
       "id": "PILEUP-0535",
@@ -8226,16 +8464,16 @@
     },
     {
       "id": "PILEUP-0537",
-      "lat": 39.99697230833333,
-      "lng": -83.01505365,
-      "vehicle_count": 8,
+      "lat": 39.9968296,
+      "lng": -83.015055,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-25T04:47:17+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 9,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 11,
       "active": true
     },
     {
@@ -8254,16 +8492,16 @@
     },
     {
       "id": "PILEUP-0539",
-      "lat": 39.995872813333335,
-      "lng": -83.01344958,
-      "vehicle_count": 5,
+      "lat": 39.995890841666665,
+      "lng": -83.01353325,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-25T08:52:08+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 5,
+      "last_seen_at": "2026-08-27T07:48:46+00:00",
+      "snapshot_count": 7,
       "active": false
     },
     {
@@ -8306,20 +8544,20 @@
       "first_detected_at": "2026-08-25T20:19:16+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
       "snapshot_count": 3,
-      "active": true
+      "active": false
     },
     {
       "id": "PILEUP-0543",
-      "lat": 40.00112557333334,
-      "lng": -83.01288772000001,
-      "vehicle_count": 5,
+      "lat": 40.001170300000005,
+      "lng": -83.01289635,
+      "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-25T20:19:16+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 3,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
       "active": true
     },
     {
@@ -8394,16 +8632,16 @@
     },
     {
       "id": "PILEUP-0549",
-      "lat": 39.96871495,
-      "lng": -83.00764614999999,
-      "vehicle_count": 6,
+      "lat": 39.96878097333333,
+      "lng": -83.00770402,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-26T01:17:45+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 5,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 7,
       "active": true
     },
     {
@@ -8422,31 +8660,31 @@
     },
     {
       "id": "PILEUP-0551",
-      "lat": 40.000319250000004,
-      "lng": -83.0154225,
+      "lat": 40.000550249999996,
+      "lng": -83.0155202,
       "vehicle_count": 4,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-26T16:47:04+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 2,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
       "active": true
     },
     {
       "id": "PILEUP-0552",
-      "lat": 39.997028325,
-      "lng": -83.01634052499999,
-      "vehicle_count": 4,
+      "lat": 39.997092386666665,
+      "lng": -83.01633978000001,
+      "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-26T16:47:04+00:00",
-      "last_seen_at": "2026-08-26T16:47:04+00:00",
-      "snapshot_count": 1,
-      "active": false
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 2,
+      "active": true
     },
     {
       "id": "PILEUP-0553",
@@ -8478,16 +8716,16 @@
     },
     {
       "id": "PILEUP-0555",
-      "lat": 39.96995546666667,
-      "lng": -82.9735224,
+      "lat": 39.96993333333334,
+      "lng": -82.97351926666667,
       "vehicle_count": 5,
       "companies": [
         "Spin",
         "Veo"
       ],
       "first_detected_at": "2026-08-26T22:36:52+00:00",
-      "last_seen_at": "2026-08-26T22:36:52+00:00",
-      "snapshot_count": 1,
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 4,
       "active": true
     },
     {
@@ -8501,6 +8739,76 @@
       ],
       "first_detected_at": "2026-08-26T22:36:52+00:00",
       "last_seen_at": "2026-08-26T22:36:52+00:00",
+      "snapshot_count": 1,
+      "active": false
+    },
+    {
+      "id": "PILEUP-0557",
+      "lat": 39.994870391666666,
+      "lng": -83.012436175,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T02:59:53+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 3,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0558",
+      "lat": 40.00216135714286,
+      "lng": -83.01082358571429,
+      "vehicle_count": 7,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 1,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0559",
+      "lat": 40.00648855,
+      "lng": -83.0085419,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 1,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0560",
+      "lat": 40.002834175,
+      "lng": -83.0146657,
+      "vehicle_count": 4,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
+      "snapshot_count": 1,
+      "active": true
+    },
+    {
+      "id": "PILEUP-0561",
+      "lat": 40.00172266,
+      "lng": -83.01394900666666,
+      "vehicle_count": 5,
+      "companies": [
+        "Spin",
+        "Veo"
+      ],
+      "first_detected_at": "2026-08-27T15:06:54+00:00",
+      "last_seen_at": "2026-08-27T15:06:54+00:00",
       "snapshot_count": 1,
       "active": true
     }
